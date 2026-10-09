@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>New password | GUHSIP</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<div class="hero" id="hero"></div>
+<main class="narrow">
+  <div class="card">
+    <p id="wait" class="muted">Checking your reset link...</p>
+    <form id="nf" hidden>
+      <h2>Choose a new password</h2>
+      <input id="np" type="password" autocomplete="new-password" placeholder="New password (8+ characters)" required>
+      <button class="btn full">Save password</button><p id="msg" class="msg"></p>
+    </form>
+  </div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+$('hero').innerHTML = `${logo('logo')}<span class="word">${WORD}</span>`;
+const ready = () => { $('wait').hidden = true; $('nf').hidden = false; };
+sb.auth.onAuthStateChange(ev => { if (ev === 'PASSWORD_RECOVERY') ready(); });
+setTimeout(() => { if ($('nf').hidden) $('wait').innerHTML = 'This link is invalid or expired. <a href="index.html">Request a new one</a>.'; }, 4000);
+$('nf').onsubmit = async e => {
+  e.preventDefault();
+  if ($('np').value.length < 8) return $('msg').textContent = 'Password must be at least 8 characters.';
+  const r = await sb.auth.updateUser({ password: $('np').value });
+  if (r.error) return $('msg').textContent = r.error.message;
+  location.href = 'feed.html';
+};
+</script></body></html>
