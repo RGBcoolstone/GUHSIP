@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home | GUHSIP</title><link rel="stylesheet" href="guhsip.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main>
+  <div id="chips" class="acts"></div>
+  <div id="tchips" class="acts" style="margin-bottom:14px"></div>
+  <form id="pf" class="card">
+    <div id="types" class="acts" style="margin-bottom:10px"></div>
+    <div id="stars" class="stars" hidden></div>
+    <textarea id="body" maxlength="1000" placeholder="What's the sip..."></textarea>
+    <div class="row">
+      <select id="comm"></select>
+      <label class="filebtn">+ Add photo<input id="file" type="file" hidden accept="image/jpeg,image/png,image/webp"></label>
+      <span id="fname"></span>
+      <button id="pb" class="btn">Post</button>
+    </div>
+  </form>
+  <div id="feed"></div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+const P = new URLSearchParams(location.search), cur = P.get('c'), ft = P.get('t');
+const href = (c, t) => 'feed.html' + (c || t ? '?' + [c && 'c=' + c, t && 't=' + t].filter(Boolean).join('&') : '');
+const chips = (list, on, mk) => list.map(([id, n]) => `<a class="pill ${(on || '') === id ? 'on' : ''}" href="${mk(id)}">${n}</a>`).join('');
+$('chips').innerHTML = chips([['', 'All'], ...COMMS], cur, id => href(id, ft));
+$('tchips').innerHTML = chips([['', 'All types'], ...Object.entries(TYPES)], ft, id => href(cur, id));
+$('comm').innerHTML = COMMS.map(([id, n]) => `<option value="${id}" ${id === (cur || 'miva') ? 'selected' : ''}>${n}</option>`).join('');
+
+let type = ft || 'gist', rating = null;
+const paint = () => {
+  $('types').innerHTML = Object.entries(TYPES).map(([id, n]) => `<button type="button" class="pill ${id === type ? 'on' : ''}" data-t="${id}">${n}</button>`).join('');
+  $('stars').hidden = type !== 'review';
+  $('stars').innerHTML = [1, 2, 3, 4, 5].map(i => `<button type="button" data-r="${i}" class="${rating >= i ? 'on' : ''}">\u2605</button>`).join('');
+};
+$('pf').addEventListener('click', e => {
+  const t = e.target.closest('[data-t]'), r = e.target.closest('[data-r]');
+  if (t) { type = t.dataset.t; paint(); }
+  if (r) { rating = +r.dataset.r === rating ? null : +r.dataset.r; paint(); }
+});
+paint();
+$('file').onchange = () => $('fname').textContent = $('file').files[0]?.name || '';
+
+const refresh = () => load($('feed'), q => { if (cur) q = q.eq('community_id', cur); if (ft) q = q.eq('post_type', ft); return q; }, 'No sips here yet. Post the first one.');
+guard().then(id => { if (id) refresh(); });
+
+$('pf').onsubmit = async e => {
+  e.preventDefault();
+  const body = $('body').value.trim(), f = $('file').files[0];
+  if (!body && !f) return;
+  if (f && f.size > 2 * 1024 * 1024) return alert('Images must be under 2 MB.');
+  $('pb').disabled = true; let image_url = null;
+  if (f) {
+    const path = `${me}/${Date.now()}.${f.type.split('/')[1] || 'jpg'}`;
+    const up = await sb.storage.from('post-images').upload(path, f);
+    if (up.error) { $('pb').disabled = false; return alert('Image upload failed. Try a smaller image.'); }
+    image_url = sb.storage.from('post-images').getPublicUrl(path).data.publicUrl;
+  }
+  const r = await sb.from('posts').insert({ body: body || null, image_url, community_id: $('comm').value, post_type: type, rating: type === 'review' ? rating : null });
+  $('pb').disabled = false;
+  if (r.error) return alert('Could not post. Run the Round 2 SQL, check you are not banned, or try again.');
+  e.target.reset(); $('fname').textContent = ''; $('comm').value = cur || 'miva'; rating = null; paint(); refresh();
+};
+</script></body></html>

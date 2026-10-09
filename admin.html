@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin | GUHSIP</title><link rel="stylesheet" href="guhsip.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main>
+  <p id="gate" class="muted">Checking access...</p>
+  <div id="ad" hidden>
+    <div class="card"><h2>Blocked words</h2>
+      <p class="muted">Posts containing these are hidden for review. Comments containing them are rejected.</p>
+      <form id="wf" class="cf"><input id="w" placeholder="Add a word, name or phrase" required><button class="btn">Add</button></form>
+      <p id="wl" class="muted"></p></div>
+    <h2>Hidden posts</h2><div id="hid"></div>
+    <h2>Recent reports</h2><div id="rep"></div>
+  </div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+const row = (p, note) => `<div class="card" data-p="${p.id}" data-u="${p.author_id}">
+  <div class="meta">@${esc(p.profiles?.username)} ${note}</div>
+  ${p.body ? `<p>${esc(p.body)}</p>` : ''}${p.image_url ? `<img class="pic" src="${esc(p.image_url)}" alt="">` : ''}
+  <div class="acts"><button data-k="ok">Restore</button><button data-k="del">Delete</button><button data-k="ban">Ban author</button></div></div>`;
+
+async function refresh() {
+  const h = await sb.from('posts').select('id,body,image_url,author_id,profiles!author_id(username),reports(count)').eq('hidden', true).order('created_at', { ascending: false }).limit(50);
+  $('hid').innerHTML = (h.data || []).map(p => row(p, `(${p.reports[0]?.count || 0} reports)`)).join('') || '<p class="muted">Nothing hidden.</p>';
+  const r = await sb.from('reports').select('reason,posts(id,body,image_url,author_id,hidden,profiles!author_id(username))').order('created_at', { ascending: false }).limit(40);
+  const seen = new Set();
+  $('rep').innerHTML = (r.data || []).filter(x => x.posts && !seen.has(x.posts.id) && seen.add(x.posts.id))
+    .map(x => row(x.posts, x.posts.hidden ? '(hidden)' : '(live)')).join('') || '<p class="muted">No reports.</p>';
+  const w = await sb.from('blocked_words').select('word').order('word');
+  $('wl').innerHTML = (w.data || []).map(x => `${esc(x.word)} <a href="#" data-w="${esc(x.word)}">remove</a>`).join(' &nbsp; ') || 'No blocked words yet.';
+}
+
+guard().then(async id => {
+  if (!id) return;
+  const { data } = await sb.from('admins').select('user_id').maybeSingle();
+  if (!data) return $('gate').textContent = 'This page is for admins only.';
+  $('gate').hidden = false; $('gate').remove(); $('ad').hidden = false; refresh();
+});
+
+$('wf').onsubmit = async e => {
+  e.preventDefault();
+  const r = await sb.from('blocked_words').insert({ word: $('w').value.trim().toLowerCase() });
+  if (r.error) alert('Could not add that word.');
+  e.target.reset(); refresh();
+};
+
+document.addEventListener('click', async e => {
+  const w = e.target.closest('a[data-w]');
+  if (w) { e.preventDefault(); await sb.from('blocked_words').delete().eq('word', w.dataset.w); return refresh(); }
+  const b = e.target.closest('button[data-k]'); if (!b) return;
+  const c = b.closest('[data-p]'), id = c.dataset.p, k = b.dataset.k;
+  if (k === 'ok') await sb.from('posts').update({ hidden: false }).eq('id', id);
+  if (k === 'del' && confirm('Delete this post?')) await sb.from('posts').delete().eq('id', id);
+  if (k === 'ban' && confirm('Ban this author and delete all their posts?')) {
+    await sb.from('banned').insert({ user_id: c.dataset.u });
+    await sb.from('posts').delete().eq('author_id', c.dataset.u);
+  }
+  refresh();
+});
+</script></body></html>

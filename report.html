@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Report | GUHSIP</title><link rel="stylesheet" href="guhsip.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main class="narrow">
+  <div class="card">
+    <form id="rf">
+      <h2>Report</h2>
+      <p id="what" class="muted"></p>
+      <select id="rs" style="max-width:100%;width:100%;margin-bottom:10px">
+        <option>Harassment or bullying</option><option>Hate or threats</option><option>Nudes or sexual content</option>
+        <option>Private info or doxxing</option><option>Targets a named person</option><option>Spam or scam</option><option>Other</option>
+      </select>
+      <textarea id="rd" maxlength="300" placeholder="Anything else we should know? (optional)"></textarea>
+      <button class="btn full">Done</button>
+    </form>
+    <div id="ok" hidden><h2>Thanks for reporting</h2><p id="okt"></p><a class="btn" href="feed.html">Back to feed</a></div>
+  </div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+const q = new URLSearchParams(location.search), post = q.get('p'), user = q.get('u');
+guard().then(async id => {
+  if (!id) return;
+  if (post) {
+    const { data } = await sb.from('posts').select('body,profiles!author_id(username)').eq('id', post).maybeSingle();
+    $('what').textContent = data ? `Reporting @${data.profiles?.username}'s sip: "${(data.body || '[image]').slice(0, 80)}"` : 'Reporting a sip.';
+  } else $('what').textContent = 'Reporting the profile @' + user;
+});
+$('rf').onsubmit = async e => {
+  e.preventDefault();
+  const note = $('rd').value.trim(), row = { reason: $('rs').value + (note ? ': ' + note : '') };
+  if (post) row.post_id = post;
+  else {
+    const { data } = await sb.from('profiles').select('id').eq('username', user || '').maybeSingle();
+    if (!data) return alert('Profile not found.');
+    row.profile_id = data.id;
+  }
+  const r = await sb.from('reports').insert(row), dup = r.error && /duplicate|unique/i.test(r.error.message);
+  if (r.error && !dup) return alert('Could not send the report. Try again.');
+  $('rf').hidden = true; $('ok').hidden = false;
+  $('okt').textContent = dup ? 'You already reported this. It is under review.' : `Thanks for reporting. This ${post ? 'post' : 'profile'} is under review.`;
+};
+</script></body></html>

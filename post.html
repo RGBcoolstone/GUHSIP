@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sip | GUHSIP</title><link rel="stylesheet" href="guhsip.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main>
+  <p><a href="feed.html">Back to feed</a></p>
+  <div id="feed"></div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+const pid = new URLSearchParams(location.search).get('id');
+const afterDelete = () => location.href = 'feed.html';
+const refresh = async () => {
+  await load($('feed'), q => q.eq('id', pid), 'This sip is gone or was hidden for review.');
+  document.querySelector('[data-a="com"]')?.click();
+};
+guard().then(id => { if (id) refresh(); });
+</script></body></html>

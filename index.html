@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GUHSIP: What's the sip?</title><link rel="stylesheet" href="guhsip.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<div class="hero" id="hero"></div>
+<main class="narrow">
+  <div class="card">
+    <div class="tabs"><button id="tl" type="button">Log in</button><button id="ts" type="button">Sign up</button></div>
+    <form id="f">
+      <input id="u" autocomplete="username" placeholder="Username" required>
+      <input id="p" type="password" placeholder="Password (8+ characters)" required>
+      <label id="tr" class="terms" hidden><input id="t" type="checkbox"><span>I'm 18 or older. I won't post threats, harassment, hate, nudes or doxxing, or target named students or staff. I'm responsible for what I post, and GUHSIP isn't. Rule-breaking posts and accounts get removed. <a href="rules.html" target="_blank">Read the rules</a>.</span></label>
+      <button id="go" class="btn full">Log in</button><p id="msg" class="msg"></p>
+    </form>
+    <p class="muted" id="fgp">Forgot your password? <a href="#" id="fg">Use your recovery code</a></p>
+    <form id="rf" hidden>
+      <h2>Reset password</h2>
+      <input id="ru" placeholder="Username" required>
+      <input id="rcode" placeholder="Recovery code" required>
+      <input id="rp" type="password" autocomplete="new-password" placeholder="New password (8+ characters)" required>
+      <button class="btn full">Set new password</button><p id="rm" class="msg"></p>
+    </form>
+    <div id="rc" hidden>
+      <h2>Save your recovery code</h2>
+      <p class="muted">This is the only way back into your account if you forget your password. It is shown once. Screenshot it or write it down.</p>
+      <div class="code" id="code"></div>
+      <button id="cp" class="btn full" type="button">Copy code</button>
+      <button id="ok" class="ghost full" type="button" style="margin-top:8px;background:none;color:#fff;border:1px solid #232323;border-radius:12px;padding:12px">I saved it, continue</button>
+    </div>
+  </div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+$('hero').innerHTML = `${logo('logo')}<span class="word">${WORD}</span><p class="tag">What's the sip?</p>`;
+let mode = 'login';
+const msg = t => $('msg').textContent = t || '';
+function setMode(m) {
+  mode = m; $('tl').classList.toggle('on', m === 'login'); $('ts').classList.toggle('on', m === 'signup');
+  $('tr').hidden = m === 'login'; $('p').autocomplete = m === 'login' ? 'current-password' : 'new-password';
+  $('go').textContent = m === 'login' ? 'Log in' : 'Create account'; msg();
+}
+$('tl').onclick = () => setMode('login'); $('ts').onclick = () => setMode('signup'); setMode('login');
+sb.auth.getSession().then(({ data }) => { if (data.session) location.href = 'feed.html'; });
+$('f').onsubmit = async e => {
+  e.preventDefault(); msg();
+  const u = $('u').value.trim().toLowerCase(), p = $('p').value;
+  if (!/^[a-z0-9_]{3,20}$/.test(u)) return msg('Username must be 3 to 20 letters, numbers or underscores.');
+  if (p.length < 8) return msg('Password must be at least 8 characters.');
+  const email = u + '@guhsip.app'; let r;
+  if (mode === 'signup') {
+    if (!$('t').checked) return msg('Accept the rules to create an account.');
+    r = await sb.auth.signUp({ email, password: p, options: { data: { username: u } } });
+  } else r = await sb.auth.signInWithPassword({ email, password: p });
+  if (r.error) return msg(/already|registered/i.test(r.error.message) ? 'That username is taken.' : r.error.message);
+  if (!r.data.session) return msg('Account created. Log in to continue.');
+  if (mode !== 'signup') return location.href = 'feed.html';
+  const code = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
+  const s = await sb.rpc('set_recovery', { code });
+  if (s.error) return msg('Account created, but the recovery code failed. Run the SQL upgrade, then log in.');
+  document.querySelector('.tabs').hidden = $('f').hidden = $('fgp').hidden = true; $('rc').hidden = false;
+  $('code').textContent = code.match(/.{4}/g).join('-');
+  $('cp').onclick = () => navigator.clipboard.writeText($('code').textContent).then(() => $('cp').textContent = 'Copied');
+  $('ok').onclick = () => location.href = 'feed.html';
+};
+$('fg').onclick = e => { e.preventDefault(); document.querySelector('.tabs').hidden = $('f').hidden = $('fgp').hidden = true; $('rf').hidden = false; };
+$('rf').onsubmit = async e => {
+  e.preventDefault();
+  const { data, error } = await sb.rpc('reset_password', { uname: $('ru').value.trim(), code: $('rcode').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(), newpw: $('rp').value });
+  $('rm').textContent = error ? error.message : data ? 'Password changed. Reloading so you can log in...' : 'Wrong username or code, or too many tries. Wait 15 minutes and try again.';
+  if (data) setTimeout(() => location.reload(), 1800);
+};
+</script></body></html>

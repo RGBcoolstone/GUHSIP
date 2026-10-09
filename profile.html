@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Profile | GUHSIP</title><link rel="stylesheet" href="guhsip.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main>
+  <div id="head" class="card"></div>
+  <form id="ef" class="card" hidden>
+    <h2>Edit profile</h2>
+    <div class="row" style="justify-content:flex-start;margin-bottom:10px"><label class="filebtn">+ Change photo<input id="pic" type="file" hidden accept="image/jpeg,image/png,image/webp"></label><span id="pn" class="muted"></span></div>
+    <textarea id="bio" maxlength="200" placeholder="Bio (200 characters max)"></textarea>
+    <input id="l1" placeholder="Link 1 (https://...)"><input id="l2" placeholder="Link 2 (https://...)"><input id="l3" placeholder="Link 3 (https://...)">
+    <div class="row"><button type="button" id="cx" class="ghost">Cancel</button><button class="btn">Save</button></div>
+    <p id="em" class="msg"></p>
+  </form>
+  <h2>Sips</h2>
+  <div id="feed"></div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+let pid = null, prof = null, n = 0;
+const refresh = () => load($('feed'), q => q.eq('author_id', pid), 'No sips yet.');
+const safe = u => /^https?:\/\/\S+$/i.test(u);
+
+function show() {
+  const links = (prof.links || []).filter(safe).map(l => `<a class="pill" href="${esc(l)}" target="_blank" rel="noopener noreferrer nofollow">${esc(l.replace(/^https?:\/\/(www\.)?/i, '').slice(0, 30))}</a>`).join('');
+  $('head').innerHTML = `<div class="who">${avatar(prof.avatar_url, prof.username, 'av big')}
+    <div style="flex:1"><h2 style="margin:0">@${esc(prof.username)}</h2><div class="meta">${n} sip${n === 1 ? '' : 's'}, joined ${new Date(prof.created_at).toLocaleDateString()}</div></div>
+    ${pid === me ? '<button id="eb" class="ghost">Edit profile</button>' : `<a class="pill" href="report.html?u=${esc(prof.username)}">Report</a>`}</div>
+    ${prof.bio ? `<p>${esc(prof.bio)}</p>` : pid === me ? '<p class="muted">Add a bio so people know your vibe.</p>' : ''}
+    <div class="acts">${links}</div>`;
+  if ($('eb')) $('eb').onclick = () => {
+    $('bio').value = prof.bio || '';
+    [0, 1, 2].forEach(i => $('l' + (i + 1)).value = (prof.links || [])[i] || '');
+    $('em').textContent = ''; $('ef').hidden = false;
+  };
+}
+
+guard().then(async id => {
+  if (!id) return;
+  const u = new URLSearchParams(location.search).get('u');
+  const cols = 'id,username,created_at,avatar_url,bio,links';
+  const { data } = await (u ? sb.from('profiles').select(cols).eq('username', u.toLowerCase()) : sb.from('profiles').select(cols).eq('id', me)).maybeSingle();
+  if (!data) return $('head').innerHTML = '<p class="muted">No account with that username.</p>';
+  prof = data; pid = data.id;
+  n = (await sb.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', pid)).count || 0;
+  show(); refresh();
+});
+
+$('pic').onchange = () => $('pn').textContent = $('pic').files[0]?.name || '';
+$('cx').onclick = () => $('ef').hidden = true;
+$('ef').onsubmit = async e => {
+  e.preventDefault(); $('em').textContent = '';
+  const links = [1, 2, 3].map(i => $('l' + i).value.trim()).filter(Boolean);
+  if (links.some(l => !safe(l))) return $('em').textContent = 'Links must start with http:// or https://';
+  const upd = { bio: $('bio').value.trim() || null, links }, f = $('pic').files[0];
+  if (f) {
+    if (f.size > 2 * 1024 * 1024) return $('em').textContent = 'Photo must be under 2 MB.';
+    const path = `${me}/avatar-${Date.now()}.${f.type.split('/')[1] || 'jpg'}`;
+    const up = await sb.storage.from('post-images').upload(path, f);
+    if (up.error) return $('em').textContent = 'Photo upload failed. Try a smaller image.';
+    upd.avatar_url = sb.storage.from('post-images').getPublicUrl(path).data.publicUrl;
+  }
+  const r = await sb.from('profiles').update(upd).eq('id', me);
+  if (r.error) return $('em').textContent = 'Could not save. Run the Round 2 SQL first.';
+  Object.assign(prof, upd); $('ef').hidden = true; $('pic').value = ''; $('pn').textContent = ''; show();
+};
+</script></body></html>
