@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notifications | GUHSIP</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main>
+  <h2>Notifications</h2>
+  <div id="ups"></div>
+  <div id="list"></div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+guard().then(async id => {
+  if (!id) return;
+  await loadUps($('ups'), 20);
+  const { data } = await sb.from('notifications').select('id,kind,post_id,snippet,read,created_at,profiles!actor_id(username,avatar_url,verified)').order('created_at', { ascending: false }).limit(50);
+  $('list').innerHTML = (data || []).map(n => {
+    const p = n.profiles || {}, u = esc(p.username);
+    return `<a class="card nt ${n.read ? '' : 'unread'}" ${n.post_id ? `href="post.html?id=${n.post_id}"` : ''}><div class="who">${avatar(p.avatar_url, p.username || '?')}
+      <div><b>@${u}</b>${p.verified ? VB : ''} ${n.kind === 'surprise' ? 'gave your sip a tea \u{1F375}' : n.kind === 'warning' ? 'sent you a warning: ' + esc(n.snippet || '') + '. Three warnings means a ban.' : 'commented: ' + esc(n.snippet || '')}<div class="meta">${ago(n.created_at)}</div></div></div></a>`;
+  }).join('') || '<p class="muted">No notifications yet. When someone reacts to or comments on your sips, you will see it here.</p>';
+  await sb.from('notifications').update({ read: true }).eq('read', false);
+  await sb.from('profiles').update({ updates_seen_at: new Date().toISOString() }).eq('id', me);
+  if ($('nb')) $('nb').hidden = true;
+});
+</script></body></html>

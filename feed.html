@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Home | GUHSIP</title><link rel="stylesheet" href="guhsip.css">
+<title>Home | GUHSIP</title><link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
 <body>
 <main>
-  <div id="chips" class="acts"></div>
-  <div id="tchips" class="acts" style="margin-bottom:14px"></div>
+  <div id="ups"></div>
+  <div class="filters"><select id="sc"></select><select id="st"></select></div>
   <form id="pf" class="card">
     <div id="types" class="acts" style="margin-bottom:10px"></div>
     <div id="stars" class="stars" hidden></div>
@@ -23,9 +23,10 @@
 <script>
 const P = new URLSearchParams(location.search), cur = P.get('c'), ft = P.get('t');
 const href = (c, t) => 'feed.html' + (c || t ? '?' + [c && 'c=' + c, t && 't=' + t].filter(Boolean).join('&') : '');
-const chips = (list, on, mk) => list.map(([id, n]) => `<a class="pill ${(on || '') === id ? 'on' : ''}" href="${mk(id)}">${n}</a>`).join('');
-$('chips').innerHTML = chips([['', 'All'], ...COMMS], cur, id => href(id, ft));
-$('tchips').innerHTML = chips([['', 'All types'], ...Object.entries(TYPES)], ft, id => href(cur, id));
+const opts = (list, on) => list.map(([id, n]) => `<option value="${id}" ${(on || '') === id ? 'selected' : ''}>${n}</option>`).join('');
+$('sc').innerHTML = opts([['', 'All communities'], ...COMMS], cur);
+$('st').innerHTML = opts([['', 'All types'], ...Object.entries(TYPES)], ft);
+$('sc').onchange = $('st').onchange = () => location.href = href($('sc').value, $('st').value);
 $('comm').innerHTML = COMMS.map(([id, n]) => `<option value="${id}" ${id === (cur || 'miva') ? 'selected' : ''}>${n}</option>`).join('');
 
 let type = ft || 'gist', rating = null;
@@ -42,8 +43,13 @@ $('pf').addEventListener('click', e => {
 paint();
 $('file').onchange = () => $('fname').textContent = $('file').files[0]?.name || '';
 
-const refresh = () => load($('feed'), q => { if (cur) q = q.eq('community_id', cur); if (ft) q = q.eq('post_type', ft); return q; }, 'No sips here yet. Post the first one.');
-guard().then(id => { if (id) refresh(); });
+let big = false;
+const refresh = () => load($('feed'), q => { if (cur) q = q.eq('community_id', cur); if (ft) q = q.eq('post_type', ft); return q; }, 'No sips here yet. Post the first one.', !cur && !ft && big);
+guard().then(async id => {
+  if (!id) return;
+  big = ((await sb.from('profiles').select('id', { count: 'exact', head: true })).count || 0) >= 10;
+  refresh(); loadUps($('ups'));
+});
 
 $('pf').onsubmit = async e => {
   e.preventDefault();

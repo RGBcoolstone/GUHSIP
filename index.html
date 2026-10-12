@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GUHSIP: What's the sip?</title><link rel="stylesheet" href="guhsip.css">
+<title>GUHSIP: What's the sip?</title><link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
 <body>
 <div class="hero" id="hero"></div>
@@ -14,9 +14,7 @@
       <label id="tr" class="terms" hidden><input id="t" type="checkbox"><span>I'm 18 or older. I won't post threats, harassment, hate, nudes or doxxing, or target named students or staff. I'm responsible for what I post, and GUHSIP isn't. My email is stored privately and may be shared with authorities if the law requires. Rule-breaking posts and accounts get removed. <a href="rules.html" target="_blank">Read the rules</a>.</span></label>
       <button id="go" class="btn full">Log in</button><p id="msg" class="msg"></p>
     </form>
-    <div id="alt"><div class="or">or</div><button type="button" id="gg" class="ghost full">Continue with Google</button>
-      <p class="muted" style="font-size:12px;margin-top:8px">By continuing with Google you accept the <a href="rules.html" target="_blank">rules</a> and confirm you are 18 or older.</p></div>
-    <p class="muted" id="fgp">Forgot your password? <a href="#" id="fg">Reset it</a></p>
+        <p class="muted" id="fgp">Forgot your password? <a href="#" id="fg">Reset it</a></p>
     <div id="rp" hidden>
       <h2>Reset password</h2>
       <form id="sr"><input id="rem" type="email" placeholder="Your email" required><button class="btn full">Send reset link</button></form>
@@ -54,12 +52,13 @@ $('f').onsubmit = async e => {
   if (mode === 'login') {
     const r = await sb.auth.signInWithPassword({ email: v.includes('@') ? v : v + '@guhsip.app', password: p });
     if (r.error) return msg(/confirm/i.test(r.error.message) ? 'Verify your email first. Check your inbox and spam folder.' : 'Wrong email, username or password.');
-    return location.href = 'feed.html';
+    const adm = await sb.from('admins').select('user_id').maybeSingle();
+    return location.href = adm.data ? 'admin.html' : 'feed.html';
   }
   if (!/^[a-z0-9_]{3,20}$/.test(v)) return msg('Username must be 3 to 20 letters, numbers or underscores.');
   if (!$('t').checked) return msg('Accept the rules to create an account.');
   const free = await sb.rpc('username_free', { u: v });
-  if (free.error) return msg('Run the Round 2.5 SQL first.');
+  if (free.error) return msg('Could not check the username: ' + free.error.message);
   if (!free.data) return msg('That username is taken or reserved.');
   const r = await sb.auth.signUp({ email: $('em').value.trim().toLowerCase(), password: p, options: { data: { username: v }, emailRedirectTo: here('feed.html') } });
   if (r.error) return msg(r.error.message);
@@ -68,8 +67,7 @@ $('f').onsubmit = async e => {
   msg('Almost done. Click the link we emailed you to verify, then log in. Check spam too.', true);
 };
 
-$('gg').onclick = () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: here('feed.html') } });
-$('fg').onclick = e => { e.preventDefault(); $('f').hidden = $('fgp').hidden = $('alt').hidden = document.querySelector('.tabs').hidden = true; $('rp').hidden = false; };
+$('fg').onclick = e => { e.preventDefault(); $('f').hidden = $('fgp').hidden = document.querySelector('.tabs').hidden = true; $('rp').hidden = false; };
 const rmsg = t => $('rm').textContent = t;
 $('sr').onsubmit = async e => {
   e.preventDefault();

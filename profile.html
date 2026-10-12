@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Profile | GUHSIP</title><link rel="stylesheet" href="guhsip.css">
+<title>Profile | GUHSIP</title><link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
 <body>
 <main>
@@ -25,7 +25,7 @@ const safe = u => /^https?:\/\/\S+$/i.test(u);
 function show() {
   const links = (prof.links || []).filter(safe).map(l => `<a class="pill" href="${esc(l)}" target="_blank" rel="noopener noreferrer nofollow">${esc(l.replace(/^https?:\/\/(www\.)?/i, '').slice(0, 30))}</a>`).join('');
   $('head').innerHTML = `<div class="who">${avatar(prof.avatar_url, prof.username, 'av big')}
-    <div style="flex:1"><h2 style="margin:0">@${esc(prof.username)}</h2><div class="meta">${n} sip${n === 1 ? '' : 's'}, joined ${new Date(prof.created_at).toLocaleDateString()}</div></div>
+    <div style="flex:1"><h2 style="margin:0">@${esc(prof.username)}${prof.verified ? VB : ''}</h2><div class="meta">${n} sip${n === 1 ? '' : 's'}, joined ${new Date(prof.created_at).toLocaleDateString()}</div></div>
     ${pid === me ? '<button id="eb" class="ghost">Edit profile</button>' : `<a class="pill" href="report.html?u=${esc(prof.username)}">Report</a>`}</div>
     ${prof.bio ? `<p>${esc(prof.bio)}</p>` : pid === me ? '<p class="muted">Add a bio so people know your vibe.</p>' : ''}
     <div class="acts">${links}</div>`;
@@ -39,7 +39,7 @@ function show() {
 guard().then(async id => {
   if (!id) return;
   const u = new URLSearchParams(location.search).get('u');
-  const cols = 'id,username,created_at,avatar_url,bio,links';
+  const cols = 'id,username,created_at,avatar_url,bio,links,verified';
   const { data } = await (u ? sb.from('profiles').select(cols).eq('username', u.toLowerCase()) : sb.from('profiles').select(cols).eq('id', me)).maybeSingle();
   if (!data) return $('head').innerHTML = '<p class="muted">No account with that username.</p>';
   prof = data; pid = data.id;

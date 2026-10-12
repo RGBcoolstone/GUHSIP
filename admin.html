@@ -1,17 +1,22 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin | GUHSIP</title><link rel="stylesheet" href="guhsip.css">
+<title>Admin | GUHSIP</title><link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
 <body>
 <main>
   <p id="gate" class="muted">Checking access...</p>
   <div id="ad" hidden>
+    <div class="card"><h2>Post an Upsip</h2>
+      <p class="muted">Every user gets notified. It shows pinned on the feed with the verified badge.</p>
+      <form id="uf"><input id="ut" maxlength="80" placeholder="Title (optional)"><textarea id="ub" maxlength="1000" placeholder="What's new at GUHSIP?" required></textarea><button class="btn">Post Upsip</button></form></div>
+    <h2>Posted Upsips</h2><div id="upl"></div>
     <div class="card"><h2>Blocked words</h2>
       <p class="muted">Posts containing these are hidden for review. Comments containing them are rejected.</p>
       <form id="wf" class="cf"><input id="w" placeholder="Add a word, name or phrase" required><button class="btn">Add</button></form>
       <p id="wl" class="muted"></p></div>
     <h2>Hidden posts</h2><div id="hid"></div>
     <h2>Recent reports</h2><div id="rep"></div>
+    <h2>Reported profiles</h2><div id="prof"></div>
   </div>
 </main>
 <script src="config.js"></script><script src="common.js"></script>
@@ -19,15 +24,21 @@
 const row = (p, note) => `<div class="card" data-p="${p.id}" data-u="${p.author_id}">
   <div class="meta">@${esc(p.profiles?.username)} ${note}</div>
   ${p.body ? `<p>${esc(p.body)}</p>` : ''}${p.image_url ? `<img class="pic" src="${esc(p.image_url)}" alt="">` : ''}
-  <div class="acts"><button data-k="ok">Restore</button><button data-k="del">Delete</button><button data-k="ban">Ban author</button></div></div>`;
+  <div class="acts"><button data-k="ok">Restore</button><button data-k="del">Delete</button><button data-k="warn">Warn</button><button data-k="ban">Ban</button></div></div>`;
 
 async function refresh() {
+  const up = await sb.from('upsips').select('id,title,body,created_at').order('created_at', { ascending: false }).limit(20);
+  $('upl').innerHTML = (up.data || []).map(u => `<div class="card"><div class="meta">${ago(u.created_at)}</div>${u.title ? `<b>${esc(u.title)}</b>` : ''}<p>${esc(u.body)}</p><div class="acts"><button data-udel="${u.id}">Delete</button></div></div>`).join('') || '<p class="muted">No Upsips yet.</p>';
   const h = await sb.from('posts').select('id,body,image_url,author_id,profiles!author_id(username),reports(count)').eq('hidden', true).order('created_at', { ascending: false }).limit(50);
   $('hid').innerHTML = (h.data || []).map(p => row(p, `(${p.reports[0]?.count || 0} reports)`)).join('') || '<p class="muted">Nothing hidden.</p>';
   const r = await sb.from('reports').select('reason,posts(id,body,image_url,author_id,hidden,profiles!author_id(username))').order('created_at', { ascending: false }).limit(40);
   const seen = new Set();
   $('rep').innerHTML = (r.data || []).filter(x => x.posts && !seen.has(x.posts.id) && seen.add(x.posts.id))
     .map(x => row(x.posts, x.posts.hidden ? '(hidden)' : '(live)')).join('') || '<p class="muted">No reports.</p>';
+  const pr = await sb.from('reports').select('reason,profiles!profile_id(id,username)').not('profile_id', 'is', null).order('created_at', { ascending: false }).limit(40);
+  const g = new Map();
+  (pr.data || []).forEach(x => { if (!x.profiles) return; const e = g.get(x.profiles.id) || { u: x.profiles.username, r: [] }; e.r.push(x.reason); g.set(x.profiles.id, e); });
+  $('prof').innerHTML = [...g].map(([id, e]) => `<div class="card" data-u="${id}"><p><a href="profile.html?u=${esc(e.u)}">@${esc(e.u)}</a> (${e.r.length} report${e.r.length === 1 ? '' : 's'})</p><p class="muted">${esc(e.r.slice(0, 3).join(' | '))}</p><div class="acts"><button data-k="warn">Warn</button><button data-k="ban">Ban</button></div></div>`).join('') || '<p class="muted">No reported profiles.</p>';
   const w = await sb.from('blocked_words').select('word').order('word');
   $('wl').innerHTML = (w.data || []).map(x => `${esc(x.word)} <a href="#" data-w="${esc(x.word)}">remove</a>`).join(' &nbsp; ') || 'No blocked words yet.';
 }
@@ -39,6 +50,12 @@ guard().then(async id => {
   $('gate').hidden = false; $('gate').remove(); $('ad').hidden = false; refresh();
 });
 
+$('uf').onsubmit = async e => {
+  e.preventDefault();
+  const r = await sb.from('upsips').insert({ title: $('ut').value.trim() || null, body: $('ub').value.trim() });
+  if (r.error) return alert('Could not post. Run the Round 3 SQL and make sure you are an admin.');
+  e.target.reset(); alert('Upsip posted. Everyone will be notified.'); refresh();
+};
 $('wf').onsubmit = async e => {
   e.preventDefault();
   const r = await sb.from('blocked_words').insert({ word: $('w').value.trim().toLowerCase() });
@@ -49,10 +66,17 @@ $('wf').onsubmit = async e => {
 document.addEventListener('click', async e => {
   const w = e.target.closest('a[data-w]');
   if (w) { e.preventDefault(); await sb.from('blocked_words').delete().eq('word', w.dataset.w); return refresh(); }
+  const ud = e.target.closest('[data-udel]');
+  if (ud) { if (confirm('Delete this Upsip? It disappears for everyone.')) { await sb.from('upsips').delete().eq('id', ud.dataset.udel); refresh(); } return; }
   const b = e.target.closest('button[data-k]'); if (!b) return;
-  const c = b.closest('[data-p]'), id = c.dataset.p, k = b.dataset.k;
+  const c = b.closest('[data-u]'), id = c.dataset.p, k = b.dataset.k;
   if (k === 'ok') await sb.from('posts').update({ hidden: false }).eq('id', id);
   if (k === 'del' && confirm('Delete this post?')) await sb.from('posts').delete().eq('id', id);
+  if (k === 'warn') {
+    const why = prompt('Reason for the warning? The user will see this.'); if (!why) return;
+    const r = await sb.from('warnings').insert({ user_id: c.dataset.u, reason: why.trim() });
+    alert(r.error ? 'Could not warn: ' + r.error.message : 'Warning sent. Three warnings means an automatic ban.');
+  }
   if (k === 'ban' && confirm('Ban this author and delete all their posts?')) {
     await sb.from('banned').insert({ user_id: c.dataset.u });
     await sb.from('posts').delete().eq('author_id', c.dataset.u);

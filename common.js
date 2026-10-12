@@ -3,6 +3,14 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let me = null;
+const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0) / 4294967295; };
+function mixed(rows) {
+  const day = new Date().toDateString();
+  return rows.map(p => {
+    const age = (Date.now() - new Date(p.created_at)) / 36e5, eng = p.surprises.length + (p.comments[0]?.count || 0) * 2 + (p.view_count || 0) / 20;
+    return [(eng + 1) / Math.pow(1 + age / 24, 1.2) + hash(p.id + day) * 1.5, p];
+  }).sort((a, b) => b[0] - a[0]).map(x => x[1]);
+}
 
 // Shown only if logo.png is missing
 const FB = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#fff"/><circle cx="34" cy="50" r="6" fill="#a3ff12"/><circle cx="50" cy="50" r="6" fill="#a3ff12"/><circle cx="66" cy="50" r="6" fill="#a3ff12"/></svg>');
@@ -19,6 +27,8 @@ const ICON = {
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
   out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
 };
+const VB = '<svg class="vb" viewBox="0 0 24 24" aria-label="Verified"><circle cx="12" cy="12" r="11" fill="#a3ff12"/><path d="M7 12.5l3.2 3.2L17 9" stroke="#000" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+ICON.bell = '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>';
 const ico = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[n]}</svg>`;
 const link = (h, i, t) => `<a href="${h}" class="${location.pathname.endsWith(h) ? 'on' : ''}">${ico(i)}<span>${t}</span></a>`;
 
@@ -30,18 +40,18 @@ async function guard(optional) {
   document.body.classList.add('has-side');
   document.body.insertAdjacentHTML('afterbegin',
     `<aside class="side"><a class="brand" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a>
-     <nav>${link('feed.html', 'home', 'Home')}${link('profile.html', 'user', 'Profile')}${link('rules.html', 'book', 'Rules')}
+     <nav>${link('feed.html', 'home', 'Home')}${link('profile.html', 'user', 'Profile')}${link('notifications.html', 'bell', 'Notifications')}${link('rules.html', 'book', 'Rules')}
      <button id="out">${ico('out')}<span>Log out</span></button></nav></aside>
      <a class="top" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a>`);
   $('out').onclick = async () => { await sb.auth.signOut(); location.href = 'index.html'; };
   sb.from('admins').select('user_id').maybeSingle().then(({ data: a }) => {
     if (a) $('out').insertAdjacentHTML('beforebegin', link('admin.html', 'shield', 'Admin'));
   });
-  needName();
+  needName(); bell(); banCheck();
   return me;
 }
 
-const SEL = 'id,body,image_url,created_at,author_id,community_id,post_type,rating,view_count,profiles!author_id(username,avatar_url),surprises(user_id),comments(count)';
+const SEL = 'id,body,image_url,created_at,author_id,community_id,post_type,rating,view_count,profiles!author_id(username,avatar_url,verified),surprises(user_id),comments(count)';
 const TYPES = { gist: 'Gist', review: 'Review', fun: 'Fun', question: 'Question' };
 const avatar = (url, u, c = 'av') => url ? `<img class="${c}" src="${esc(url)}" alt="">` : `<span class="${c}">${esc(u).charAt(0).toUpperCase()}</span>`;
 const badge = p => p.post_type && p.post_type !== 'gist' ? `<span class="tag2">${TYPES[p.post_type] || ''}${p.rating ? ' ' + '\u2605'.repeat(p.rating) + '\u2606'.repeat(5 - p.rating) : ''}</span>` : '';
@@ -63,14 +73,14 @@ const io = new IntersectionObserver(es => es.forEach(en => {
   if (seen.has(id)) return; seen.add(id); vq.push(id);
   clearTimeout(vt); vt = setTimeout(() => sb.rpc('record_views', { ids: vq.splice(0) }), 1500);
 }), { threshold: .6 });
-const sur = n => `${n} surprise${n === 1 ? '' : 's'}`;
+const sur = n => `${n} tea${n === 1 ? "" : "s"}`;
 
 
 function card(p) {
   const mine = p.surprises.some(s => s.user_id === me), n = p.surprises.length, u = esc(p.profiles?.username);
   return `<article class="card" data-id="${p.id}">
     <div class="who">${avatar(p.profiles?.avatar_url, p.profiles?.username)}
-      <div><a href="profile.html?u=${u}">@${u}</a><div class="meta">in ${esc(cname(p.community_id))}, ${ago(p.created_at)}</div></div></div>
+      <div><a href="profile.html?u=${u}">@${u}</a>${p.profiles?.verified ? VB : ''}<div class="meta">in ${esc(cname(p.community_id))}, ${ago(p.created_at)}</div></div></div>
     ${badge(p)}
     ${p.body ? `<p>${esc(p.body)}</p>` : ''}
     ${p.image_url ? `<img class="pic" src="${esc(p.image_url)}" alt="" loading="lazy">` : ''}
@@ -83,10 +93,11 @@ function card(p) {
     </div><div class="cbox" hidden></div></article>`;
 }
 
-async function load(el, filter, empty) {
-  let q = sb.from('posts').select(SEL).order('created_at', { ascending: false }).limit(50);
+async function load(el, filter, empty, mix) {
+  let q = sb.from('posts').select(SEL).order('created_at', { ascending: false }).limit(mix ? 100 : 50);
   if (filter) q = filter(q);
   const { data, error } = await q;
+  if (mix && data) data.splice(0, data.length, ...mixed(data).slice(0, 50));
   el.innerHTML = error ? `<p class="muted">Could not load posts: ${esc(error.message)}</p>`
     : data.length ? data.map(card).join('') : `<p class="muted">${empty || 'No sips yet.'}</p>`;
   el.querySelectorAll('.card').forEach(c => io.observe(c));
@@ -141,4 +152,27 @@ async function needName() {
     const r = await sb.rpc('set_username', { u: $('nmi').value.trim().toLowerCase() });
     if (r.data) location.reload(); else $('nmm').textContent = 'That username is taken, reserved or invalid.';
   };
+}
+
+async function bell() {
+  const a = document.querySelector('a[href="notifications.html"]');
+  if (!a) return;
+  a.insertAdjacentHTML('beforeend', '<b id="nb" class="nb" hidden></b>');
+  const { data: p } = await sb.from('profiles').select('updates_seen_at').eq('id', me).maybeSingle();
+  const x = await sb.from('notifications').select('id', { count: 'exact', head: true }).eq('read', false);
+  const y = await sb.from('upsips').select('id', { count: 'exact', head: true }).gt('created_at', p?.updates_seen_at || new Date().toISOString());
+  const n = (x.count || 0) + (y.count || 0);
+  if (n) { $('nb').textContent = n > 99 ? '99+' : n; $('nb').hidden = false; }
+}
+
+async function loadUps(el, n = 2) {
+  const { data } = await sb.from('upsips').select('title,body,created_at').order('created_at', { ascending: false }).limit(n);
+  el.innerHTML = (data || []).map(u => `<article class="card up"><div class="who"><img class="av" src="logo.png" alt=""><div><b>GUHSIP</b>${VB}<div class="meta">Upsip, ${ago(u.created_at)}</div></div></div>${u.title ? `<h2>${esc(u.title)}</h2>` : ''}<p>${esc(u.body)}</p></article>`).join('');
+}
+
+async function banCheck() {
+  const { data } = await sb.from('banned').select('user_id').eq('user_id', me).maybeSingle();
+  if (!data) return;
+  document.body.insertAdjacentHTML('beforeend', `<div class="ovl"><div class="card"><h2>Your account is banned</h2><p class="muted">It broke the GUHSIP rules after repeated warnings. If you think this is a mistake, email guhsip.app@gmail.com.</p><button class="btn full" id="bo">Log out</button></div></div>`);
+  $('bo').onclick = async () => { await sb.auth.signOut(); location.href = 'index.html'; };
 }

@@ -110,3 +110,15 @@ details{margin-top:14px}summary{cursor:pointer;color:var(--muted);font-size:14px
 .ovl{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:20;display:grid;place-items:center;padding:18px}
 .ovl .card{max-width:380px;width:100%;margin:0}
 .or{text-align:center;color:var(--muted);margin:14px 0;font-size:13px}
+
+.vb{width:16px;height:16px;vertical-align:-3px;margin-left:4px}
+.side nav a{position:relative}
+.nb{background:var(--sip);color:#000;border-radius:999px;font-size:11px;font-weight:800;padding:1px 8px;margin-left:auto}
+.up{border-color:var(--sip);box-shadow:0 0 22px rgba(163,255,18,.12)}
+.up h2{font-size:18px;margin:4px 0 6px}
+.nt{display:block;color:var(--ink)}
+.nt.unread{border-color:var(--sip);background:rgba(163,255,18,.06)}
+@media(max-width:800px){.nb{position:absolute;top:0;right:4px;margin:0}}
+
+.filters{display:flex;gap:8px;margin-bottom:14px}
+.filters select{flex:1;max-width:none;padding:10px 12px}
