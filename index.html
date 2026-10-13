@@ -38,7 +38,7 @@ function setMode(m) {
   mode = m; const s = m === 'signup';
   $('tl').classList.toggle('on', !s); $('ts').classList.toggle('on', s);
   $('em').hidden = $('tr').hidden = !s; $('em').required = s;
-  $('u').placeholder = s ? 'Username (shown to others)' : 'Email or username';
+  $('u').placeholder = s ? 'Username (shown to others)' : 'Email';
   $('p').autocomplete = s ? 'new-password' : 'current-password';
   $('go').textContent = s ? 'Create account' : 'Log in'; msg();
 }
