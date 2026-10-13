@@ -10,8 +10,10 @@
     <div id="types" class="acts" style="margin-bottom:10px"></div>
     <div id="stars" class="stars" hidden></div>
     <textarea id="body" maxlength="1000" placeholder="What's the sip..."></textarea>
+    <div id="ep" class="epanel" hidden></div>
     <div class="row">
       <select id="comm"></select>
+      <button type="button" class="emo-btn" id="eb" aria-label="Add emoji">😊</button>
       <label class="filebtn">+ Add photo<input id="file" type="file" hidden accept="image/jpeg,image/png,image/webp"></label>
       <span id="fname"></span>
       <button id="pb" class="btn">Post</button>
@@ -41,6 +43,9 @@ $('pf').addEventListener('click', e => {
   if (r) { rating = +r.dataset.r === rating ? null : +r.dataset.r; paint(); }
 });
 paint();
+$('ep').innerHTML = EMO.map(e => `<button type="button">${e}</button>`).join('');
+$('eb').onclick = () => $('ep').hidden = !$('ep').hidden;
+$('ep').onclick = e => { const b = e.target.closest('button'); if (!b) return; const t = $('body'); t.setRangeText(b.textContent, t.selectionStart, t.selectionEnd, 'end'); t.focus(); };
 $('file').onchange = () => $('fname').textContent = $('file').files[0]?.name || '';
 
 let big = false;
@@ -60,12 +65,12 @@ $('pf').onsubmit = async e => {
   if (f) {
     const path = `${me}/${Date.now()}.${f.type.split('/')[1] || 'jpg'}`;
     const up = await sb.storage.from('post-images').upload(path, f);
-    if (up.error) { $('pb').disabled = false; return alert('Image upload failed. Try a smaller image.'); }
+    if (up.error) { $('pb').disabled = false; return alert(friendly(up.error, "Couldn't upload that image. Try a smaller one.")); }
     image_url = sb.storage.from('post-images').getPublicUrl(path).data.publicUrl;
   }
   const r = await sb.from('posts').insert({ body: body || null, image_url, community_id: $('comm').value, post_type: type, rating: type === 'review' ? rating : null });
   $('pb').disabled = false;
-  if (r.error) return alert('Could not post. Run the Round 2 SQL, check you are not banned, or try again.');
+  if (r.error) return alert(friendly(r.error, "Couldn't post your sip. Please try again."));
   e.target.reset(); $('fname').textContent = ''; $('comm').value = cur || 'miva'; rating = null; paint(); refresh();
 };
 </script></body></html>

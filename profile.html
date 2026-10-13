@@ -18,15 +18,16 @@
 </main>
 <script src="config.js"></script><script src="common.js"></script>
 <script>
-let pid = null, prof = null, n = 0;
+let pid = null, prof = null, n = 0, gc = 0, fc = 0;
+window.afterFollow = (id, on) => { if (id === pid) { gc += on ? 1 : -1; show(); } };
 const refresh = () => load($('feed'), q => q.eq('author_id', pid), 'No sips yet.');
 const safe = u => /^https?:\/\/\S+$/i.test(u);
 
 function show() {
   const links = (prof.links || []).filter(safe).map(l => `<a class="pill" href="${esc(l)}" target="_blank" rel="noopener noreferrer nofollow">${esc(l.replace(/^https?:\/\/(www\.)?/i, '').slice(0, 30))}</a>`).join('');
   $('head').innerHTML = `<div class="who">${avatar(prof.avatar_url, prof.username, 'av big')}
-    <div style="flex:1"><h2 style="margin:0">@${esc(prof.username)}${prof.verified ? VB : ''}</h2><div class="meta">${n} sip${n === 1 ? '' : 's'}, joined ${new Date(prof.created_at).toLocaleDateString()}</div></div>
-    ${pid === me ? '<button id="eb" class="ghost">Edit profile</button>' : `<a class="pill" href="report.html?u=${esc(prof.username)}">Report</a>`}</div>
+    <div style="flex:1"><h2 style="margin:0">@${esc(prof.username)}${prof.verified ? VB : ''}</h2><div class="meta">${n} sip${n === 1 ? '' : 's'}, ${gc} Guhsipper${gc === 1 ? '' : 's'}, ${fc} following, joined ${new Date(prof.created_at).toLocaleDateString()}</div></div>
+    ${pid === me ? '<button id="eb" class="ghost">Edit profile</button>' : followBtn(pid) + `<a class="pill" style="margin-left:8px" href="report.html?u=${esc(prof.username)}">Report</a>`}</div>
     ${prof.bio ? `<p>${esc(prof.bio)}</p>` : pid === me ? '<p class="muted">Add a bio so people know your vibe.</p>' : ''}
     <div class="acts">${links}</div>`;
   if ($('eb')) $('eb').onclick = () => {
@@ -44,6 +45,8 @@ guard().then(async id => {
   if (!data) return $('head').innerHTML = '<p class="muted">No account with that username.</p>';
   prof = data; pid = data.id;
   n = (await sb.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', pid)).count || 0;
+  const cnt = async col => (await sb.from('follows').select('follower_id', { count: 'exact', head: true }).eq(col, pid)).count || 0;
+  gc = await cnt('following_id'); fc = await cnt('follower_id'); await loadFollowing();
   show(); refresh();
 });
 
@@ -62,7 +65,7 @@ $('ef').onsubmit = async e => {
     upd.avatar_url = sb.storage.from('post-images').getPublicUrl(path).data.publicUrl;
   }
   const r = await sb.from('profiles').update(upd).eq('id', me);
-  if (r.error) return $('em').textContent = 'Could not save. Run the Round 2 SQL first.';
+  if (r.error) return $('em').textContent = friendly(r.error, "Couldn't save your profile. Please try again.");
   Object.assign(prof, upd); $('ef').hidden = true; $('pic').value = ''; $('pn').textContent = ''; show();
 };
 </script></body></html>

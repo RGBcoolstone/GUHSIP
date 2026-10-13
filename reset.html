@@ -24,7 +24,7 @@ $('nf').onsubmit = async e => {
   e.preventDefault();
   if ($('np').value.length < 8) return $('msg').textContent = 'Password must be at least 8 characters.';
   const r = await sb.auth.updateUser({ password: $('np').value });
-  if (r.error) return $('msg').textContent = r.error.message;
+  if (r.error) return $('msg').textContent = authMsg(r.error);
   location.href = 'feed.html';
 };
 </script></body></html>

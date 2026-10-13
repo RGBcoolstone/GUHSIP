@@ -38,7 +38,7 @@ $('rf').onsubmit = async e => {
     row.profile_id = data.id;
   }
   const r = await sb.from('reports').insert(row), dup = r.error && /duplicate|unique/i.test(r.error.message);
-  if (r.error && !dup) return alert('Could not send the report. Try again.');
+  if (r.error && !dup) return alert(friendly(r.error, "Couldn't send the report. Please try again."));
   $('rf').hidden = true; $('ok').hidden = false;
   $('okt').textContent = dup ? 'You already reported this. It is under review.' : `Thanks for reporting. This ${post ? 'post' : 'profile'} is under review.`;
 };

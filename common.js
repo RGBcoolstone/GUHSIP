@@ -3,6 +3,26 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let me = null;
+const OFFLINE = "You're offline. Check your connection and try again.";
+const offline = e => !navigator.onLine || /failed to fetch|network|load failed|fetch/i.test((e && e.message) || '');
+const friendly = (e, fallback) => offline(e) ? OFFLINE : fallback;
+function authMsg(e) {
+  const m = (e && e.message) || '';
+  if (offline(e)) return OFFLINE;
+  if (/already|registered/i.test(m)) return 'That email already has an account. Try logging in.';
+  if (/rate|too many|seconds/i.test(m)) return 'Too many attempts. Please wait a few minutes and try again.';
+  if (/password/i.test(m)) return 'Please choose a stronger password.';
+  if (/valid email|invalid.*email/i.test(m)) return 'Please enter a valid email address.';
+  return 'Something went wrong. Please try again.';
+}
+function offbar() {
+  const b = document.getElementById('offbar');
+  if (!navigator.onLine) { if (!b) document.body.insertAdjacentHTML('afterbegin', '<div id="offbar" class="offbar">You are offline. Some things will not work until you reconnect.</div>'); }
+  else if (b) b.remove();
+}
+window.addEventListener('offline', offbar);
+window.addEventListener('online', () => { offbar(); if (typeof refresh === 'function') refresh(); });
+offbar();
 const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0) / 4294967295; };
 function mixed(rows) {
   const day = new Date().toDateString();
@@ -80,7 +100,7 @@ function card(p) {
   const mine = p.surprises.some(s => s.user_id === me), n = p.surprises.length, u = esc(p.profiles?.username);
   return `<article class="card" data-id="${p.id}">
     <div class="who">${avatar(p.profiles?.avatar_url, p.profiles?.username)}
-      <div><a href="profile.html?u=${u}">@${u}</a>${p.profiles?.verified ? VB : ''}<div class="meta">in ${esc(cname(p.community_id))}, ${ago(p.created_at)}</div></div></div>
+      <div><a href="profile.html?u=${u}">@${u}</a>${p.profiles?.verified ? VB : ''}<div class="meta">in ${esc(cname(p.community_id))}, ${ago(p.created_at)}</div></div>${followBtn(p.author_id)}</div>
     ${badge(p)}
     ${p.body ? `<p>${esc(p.body)}</p>` : ''}
     ${p.image_url ? `<img class="pic" src="${esc(p.image_url)}" alt="" loading="lazy">` : ''}
@@ -97,8 +117,9 @@ async function load(el, filter, empty, mix) {
   let q = sb.from('posts').select(SEL).order('created_at', { ascending: false }).limit(mix ? 100 : 50);
   if (filter) q = filter(q);
   const { data, error } = await q;
+  await loadFollowing();
   if (mix && data) data.splice(0, data.length, ...mixed(data).slice(0, 50));
-  el.innerHTML = error ? `<p class="muted">Could not load posts: ${esc(error.message)}</p>`
+  el.innerHTML = error ? `<p class="muted">${offline(error) ? OFFLINE : "Couldn't load sips right now. Please refresh in a moment."}</p>`
     : data.length ? data.map(card).join('') : `<p class="muted">${empty || 'No sips yet.'}</p>`;
   el.querySelectorAll('.card').forEach(c => io.observe(c));
 }
@@ -113,7 +134,7 @@ async function openComments(c, id) {
     ev.preventDefault();
     const t = ev.target.querySelector('input').value.trim(); if (!t) return;
     const r = await sb.from('comments').insert({ post_id: id, body: t });
-    if (r.error) return alert('Could not comment. You may be banned, or try again.');
+    if (r.error) return alert(friendly(r.error, "Couldn't post your comment. Please try again."));
     const n = c.querySelector('[data-a="com"] span'); n.textContent = +n.textContent + 1;
     box.hidden = true; openComments(c, id);
   };
@@ -121,6 +142,8 @@ async function openComments(c, id) {
 
 // Each page defines refresh() to reload itself
 document.addEventListener('click', async e => {
+  const fb = e.target.closest('[data-f]');
+  if (fb) { toggleFollow(fb.dataset.f); return; }
   const eb = e.target.closest('.emo-b'), em = e.target.closest('.emo button');
   if (eb) { const pn = eb.closest('.cbox').querySelector('.emo'); pn.hidden = !pn.hidden; return; }
   if (em) { const i = em.closest('.cbox').querySelector('input'); i.setRangeText(em.textContent, i.selectionStart, i.selectionEnd, 'end'); i.focus(); return; }
@@ -166,8 +189,10 @@ async function bell() {
 }
 
 async function loadUps(el, n = 2) {
+  await loadFollowing();
+  const g = await sb.from('profiles').select('id').eq('username', 'guhsip').maybeSingle(), gid = g.data && g.data.id;
   const { data } = await sb.from('upsips').select('title,body,created_at').order('created_at', { ascending: false }).limit(n);
-  el.innerHTML = (data || []).map(u => `<article class="card up"><div class="who"><img class="av" src="logo.png" alt=""><div><b>GUHSIP</b>${VB}<div class="meta">Upsip, ${ago(u.created_at)}</div></div></div>${u.title ? `<h2>${esc(u.title)}</h2>` : ''}<p>${esc(u.body)}</p></article>`).join('');
+  el.innerHTML = (data || []).map(u => `<article class="card up"><div class="who"><img class="av" src="logo.png" alt=""><div><b>GUHSIP</b>${VB}<div class="meta">Upsip, ${ago(u.created_at)}</div></div>${followBtn(gid)}</div>${u.title ? `<h2>${esc(u.title)}</h2>` : ''}<p>${esc(u.body)}</p></article>`).join('');
 }
 
 async function banCheck() {
@@ -198,3 +223,27 @@ function addEyes() {
   });
 }
 addEyes();
+
+// Guhsippers (followers)
+const FOLLOWING = new Set();
+const followBtn = id => !id || id === me ? '' : `<button type="button" class="fbtn ${FOLLOWING.has(id) ? 'on' : ''}" data-f="${id}">${FOLLOWING.has(id) ? 'Following' : 'Follow'}</button>`;
+async function loadFollowing() {
+  if (!me) return;
+  const { data } = await sb.from('follows').select('following_id').eq('follower_id', me);
+  FOLLOWING.clear(); (data || []).forEach(r => FOLLOWING.add(r.following_id));
+}
+function paintFollow(id, on) {
+  document.querySelectorAll(`[data-f="${id}"]`).forEach(b => { b.classList.toggle('on', on); b.textContent = on ? 'Following' : 'Follow'; });
+}
+async function toggleFollow(id) {
+  const on = !FOLLOWING.has(id);
+  if (on) FOLLOWING.add(id); else FOLLOWING.delete(id);
+  paintFollow(id, on);
+  const r = on ? await sb.from('follows').insert({ following_id: id }) : await sb.from('follows').delete().match({ follower_id: me, following_id: id });
+  if (r.error) {
+    if (on) FOLLOWING.delete(id); else FOLLOWING.add(id);
+    paintFollow(id, !on);
+    return alert(friendly(r.error, "Couldn't update that. Please try again."));
+  }
+  if (window.afterFollow) afterFollow(id, on);
+}

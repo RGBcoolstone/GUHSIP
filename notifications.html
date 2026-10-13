@@ -16,8 +16,8 @@ guard().then(async id => {
   const { data } = await sb.from('notifications').select('id,kind,post_id,snippet,read,created_at,profiles!actor_id(username,avatar_url,verified)').order('created_at', { ascending: false }).limit(50);
   $('list').innerHTML = (data || []).map(n => {
     const p = n.profiles || {}, u = esc(p.username);
-    return `<a class="card nt ${n.read ? '' : 'unread'}" ${n.post_id ? `href="post.html?id=${n.post_id}"` : ''}><div class="who">${avatar(p.avatar_url, p.username || '?')}
-      <div><b>@${u}</b>${p.verified ? VB : ''} ${n.kind === 'surprise' ? 'gave your sip a tea \u{1F375}' : n.kind === 'warning' ? 'sent you a warning: ' + esc(n.snippet || '') + '. Three warnings means a ban.' : 'commented: ' + esc(n.snippet || '')}<div class="meta">${ago(n.created_at)}</div></div></div></a>`;
+    return `<a class="card nt ${n.read ? '' : 'unread'}" ${n.post_id ? `href="post.html?id=${n.post_id}"` : n.kind === 'follow' ? `href="profile.html?u=${u}"` : ''}><div class="who">${avatar(p.avatar_url, p.username || '?')}
+      <div><b>@${u}</b>${p.verified ? VB : ''} ${n.kind === 'surprise' ? 'gave your sip a tea \u{1F375}' : n.kind === 'follow' ? 'became your Guhsipper \u{1F375}' : n.kind === 'warning' ? 'sent you a warning: ' + esc(n.snippet || '') + '. Three warnings means a ban.' : 'commented: ' + esc(n.snippet || '')}<div class="meta">${ago(n.created_at)}</div></div></div></a>`;
   }).join('') || '<p class="muted">No notifications yet. When someone reacts to or comments on your sips, you will see it here.</p>';
   await sb.from('notifications').update({ read: true }).eq('read', false);
   await sb.from('profiles').update({ updates_seen_at: new Date().toISOString() }).eq('id', me);

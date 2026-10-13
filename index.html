@@ -51,17 +51,17 @@ $('f').onsubmit = async e => {
   if (p.length < 8) return msg('Password must be at least 8 characters.');
   if (mode === 'login') {
     const r = await sb.auth.signInWithPassword({ email: v.includes('@') ? v : v + '@guhsip.app', password: p });
-    if (r.error) return msg(/confirm/i.test(r.error.message) ? 'Verify your email first. Check your inbox and spam folder.' : 'Wrong email, username or password.');
+    if (r.error) return msg(offline(r.error) ? OFFLINE : /confirm/i.test(r.error.message) ? 'Verify your email first. Check your inbox and spam folder.' : 'Wrong email, username or password.');
     const adm = await sb.from('admins').select('user_id').maybeSingle();
     return location.href = adm.data ? 'admin.html' : 'feed.html';
   }
   if (!/^[a-z0-9_]{3,20}$/.test(v)) return msg('Username must be 3 to 20 letters, numbers or underscores.');
   if (!$('t').checked) return msg('Accept the rules to create an account.');
   const free = await sb.rpc('username_free', { u: v });
-  if (free.error) return msg('Could not check the username: ' + free.error.message);
+  if (free.error) return msg(friendly(free.error, 'Something went wrong. Please try again in a moment.'));
   if (!free.data) return msg('That username is taken or reserved.');
   const r = await sb.auth.signUp({ email: $('em').value.trim().toLowerCase(), password: p, options: { data: { username: v }, emailRedirectTo: here('feed.html') } });
-  if (r.error) return msg(r.error.message);
+  if (r.error) return msg(authMsg(r.error));
   if (r.data.user && r.data.user.identities && !r.data.user.identities.length) return msg('That email already has an account. Try logging in.');
   if (r.data.session) return location.href = 'feed.html';
   msg('Almost done. Click the link we emailed you to verify, then log in. Check spam too.', true);
@@ -72,12 +72,12 @@ const rmsg = t => $('rm').textContent = t;
 $('sr').onsubmit = async e => {
   e.preventDefault();
   const r = await sb.auth.resetPasswordForEmail($('rem').value.trim(), { redirectTo: here('reset.html') });
-  rmsg(r.error ? r.error.message : 'If that email has an account, a reset link is on its way.');
+  rmsg(r.error ? authMsg(r.error) : 'If that email has an account, a reset link is on its way.');
 };
 $('rf').onsubmit = async e => {
   e.preventDefault();
   const { data, error } = await sb.rpc('reset_password', { uname: $('ru').value.trim(), code: $('rcode').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(), newpw: $('rnp').value });
-  rmsg(error ? error.message : data ? 'Password changed. Reloading so you can log in...' : 'Wrong username or code, or too many tries. Wait 15 minutes.');
+  rmsg(error ? authMsg(error) : data ? 'Password changed. Reloading so you can log in...' : 'Wrong username or code, or too many tries. Wait 15 minutes.');
   if (data) setTimeout(() => location.reload(), 1800);
 };
 </script></body></html>

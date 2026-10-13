@@ -53,13 +53,13 @@ guard().then(async id => {
 $('uf').onsubmit = async e => {
   e.preventDefault();
   const r = await sb.from('upsips').insert({ title: $('ut').value.trim() || null, body: $('ub').value.trim() });
-  if (r.error) return alert('Could not post. Run the Round 3 SQL and make sure you are an admin.');
+  if (r.error) return alert(friendly(r.error, "Couldn't post that update. Please try again."));
   e.target.reset(); alert('Upsip posted. Everyone will be notified.'); refresh();
 };
 $('wf').onsubmit = async e => {
   e.preventDefault();
   const r = await sb.from('blocked_words').insert({ word: $('w').value.trim().toLowerCase() });
-  if (r.error) alert('Could not add that word.');
+  if (r.error) alert(friendly(r.error, "Couldn't add that word. Please try again."));
   e.target.reset(); refresh();
 };
 
@@ -75,7 +75,7 @@ document.addEventListener('click', async e => {
   if (k === 'warn') {
     const why = prompt('Reason for the warning? The user will see this.'); if (!why) return;
     const r = await sb.from('warnings').insert({ user_id: c.dataset.u, reason: why.trim() });
-    alert(r.error ? 'Could not warn: ' + r.error.message : 'Warning sent. Three warnings means an automatic ban.');
+    alert(r.error ? friendly(r.error, "Couldn't send the warning. Please try again.") : 'Warning sent. Three warnings means an automatic ban.');
   }
   if (k === 'ban' && confirm('Ban this author and delete all their posts?')) {
     await sb.from('banned').insert({ user_id: c.dataset.u });
