@@ -10,7 +10,7 @@
   <form id="pf" class="card">
     <div id="types" class="acts" style="margin-bottom:10px"></div>
     <div id="stars" class="stars" hidden></div>
-    <textarea id="body" maxlength="1000" placeholder="What's the sip..."></textarea>
+    <textarea id="body" maxlength="1000" placeholder="Drop the sip..."></textarea>
     <div id="ep" class="epanel" hidden></div>
     <div class="row">
       <select id="comm"></select>
@@ -67,11 +67,11 @@ $('pf').onsubmit = async e => {
   e.preventDefault();
   const body = $('body').value.trim(), f = $('file').files[0];
   if (!body && !f) return;
-  if (f && f.size > 2 * 1024 * 1024) return alert('Images must be under 2 MB.');
+  if (f && f.size > 10 * 1024 * 1024) return alert('Images must be under 10 MB.');
   $('pb').disabled = true; let image_url = null;
   if (f) {
-    const path = `${me}/${Date.now()}.${f.type.split('/')[1] || 'jpg'}`;
-    const up = await sb.storage.from('post-images').upload(path, f);
+    const path = `${me}/${Date.now()}.jpg`;
+    const up = await sb.storage.from('post-images').upload(path, await squash(f), { contentType: 'image/jpeg' });
     if (up.error) { $('pb').disabled = false; return alert(friendly(up.error, "Couldn't upload that image. Try a smaller one.")); }
     image_url = sb.storage.from('post-images').getPublicUrl(path).data.publicUrl;
   }

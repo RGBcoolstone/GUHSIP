@@ -36,7 +36,8 @@ function mixed(rows) {
 const FB = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#fff"/><circle cx="34" cy="50" r="6" fill="#a3ff12"/><circle cx="50" cy="50" r="6" fill="#a3ff12"/><circle cx="66" cy="50" r="6" fill="#a3ff12"/></svg>');
 const logo = c => `<img class="${c}" src="logo.png" alt="GUHSIP logo" onerror="this.onerror=null;this.src=FB">`;
 const WORD = 'GUHSI<b>P</b>';
-document.head.insertAdjacentHTML('beforeend', '<link rel="icon" href="logo.png">');
+document.head.insertAdjacentHTML('beforeend', '<link rel="icon" href="logo.png"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-192.png"><meta name="theme-color" content="#050505">');
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 const COMMS = [['miva', 'MIVA'], ['reviews', 'Reviews'], ['campus', 'Campus'], ['music', 'Music'], ['sports', 'Sports'], ['gaming', 'Gaming'], ['tech', 'Tech'], ['entertainment', 'Entertainment'], ['relationships', 'Relationships']];
 const cname = id => (COMMS.find(c => c[0] === id) || [0, id])[1];
 
@@ -119,7 +120,8 @@ async function load(el, filter, empty, mix) {
   let q = sb.from('posts').select(SEL).order('created_at', { ascending: false }).limit(mix ? 100 : 50);
   if (filter) q = filter(q);
   const { data, error } = await q;
-  await loadFollowing();
+  await loadFollowing(); await loadBlocked();
+  if (data) for (let i = data.length - 1; i >= 0; i--) if (BLOCKED.has(data[i].author_id)) data.splice(i, 1);
   if (mix && data) data.splice(0, data.length, ...mixed(data).slice(0, 50));
   el.innerHTML = error ? `<p class="muted">${offline(error) ? OFFLINE : "Couldn't load sips right now. Please refresh in a moment."}</p>`
     : data.length ? data.map(card).join('') : `<p class="muted">${empty || 'No sips yet.'}</p>`;
@@ -130,7 +132,7 @@ async function openComments(c, id) {
   const box = c.querySelector('.cbox');
   box.hidden = !box.hidden; if (box.hidden) return;
   const { data } = await sb.from('comments').select('id,author_id,body,profiles!author_id(username)').eq('post_id', id).order('created_at');
-  box.innerHTML = (data || []).map(x => `<p class="cm"><a href="profile.html?u=${esc(x.profiles?.username)}">@${esc(x.profiles?.username)}</a> ${esc(x.body)} ${x.author_id === me ? `<button class="del" data-cdel="${x.id}">Delete</button>` : `<a class="del" href="report.html?c=${x.id}">Report</a>`}</p>`).join('')
+  box.innerHTML = (data || []).filter(x => !BLOCKED.has(x.author_id)).map(x => `<p class="cm"><a href="profile.html?u=${esc(x.profiles?.username)}">@${esc(x.profiles?.username)}</a> ${esc(x.body)} ${x.author_id === me ? `<button class="del" data-cdel="${x.id}">Delete</button>` : `<a class="del" href="report.html?c=${x.id}">Report</a>`}</p>`).join('')
     + '<form class="cf"><button type="button" class="emo-b">😊</button><input maxlength="500" placeholder="Add a comment" required><button class="btn sm">Send</button></form><div class="emo" hidden>' + EMO.map(e => `<button type="button">${e}</button>`).join('') + '</div>';
   box.querySelector('form').onsubmit = async ev => {
     ev.preventDefault();
@@ -144,6 +146,8 @@ async function openComments(c, id) {
 
 // Each page defines refresh() to reload itself
 document.addEventListener('click', async e => {
+  const bl = e.target.closest('[data-blk]');
+  if (bl) { toggleBlock(bl.dataset.blk); return; }
   const cd = e.target.closest('[data-cdel]');
   if (cd) {
     if (!confirm('Delete your comment?')) return;
@@ -273,4 +277,33 @@ async function newCode() {
   const code = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
   const r = await sb.rpc('set_recovery', { code });
   return r.error ? null : code;
+}
+
+// Shrink photos before upload (saves storage and your users' data)
+async function squash(file, max = 1280) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.82));
+    return b && b.size < file.size ? b : file;
+  } catch (e) { return file; }
+}
+
+// Blocking hides a person's sips and comments from you
+const BLOCKED = new Set();
+async function loadBlocked() {
+  if (!me) return;
+  const { data } = await sb.from('blocks').select('blocked_id').eq('blocker_id', me);
+  BLOCKED.clear(); (data || []).forEach(r => BLOCKED.add(r.blocked_id));
+}
+async function toggleBlock(id) {
+  const on = !BLOCKED.has(id);
+  if (on && !confirm("Block this person? You won't see their sips or comments, and they can't message you.")) return;
+  const r = on ? await sb.from('blocks').insert({ blocked_id: id }) : await sb.from('blocks').delete().match({ blocker_id: me, blocked_id: id });
+  if (r.error) return alert(friendly(r.error, "Couldn't update that. Please try again."));
+  if (on) BLOCKED.add(id); else BLOCKED.delete(id);
+  if (window.afterBlock) afterBlock(); else if (typeof refresh === 'function') refresh();
 }

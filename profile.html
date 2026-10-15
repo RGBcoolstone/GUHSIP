@@ -14,6 +14,8 @@
     <p id="em" class="msg"></p>
     <h2 style="margin-top:14px">Recovery code</h2><p class="muted">Lets you reset your password without email. A new code replaces the old one.</p>
     <button type="button" id="rcb" class="ghost">Make a new recovery code</button><div id="rcd" class="code" hidden></div>
+    <h2 style="margin-top:14px">Delete account</h2><p class="muted">Permanently removes your account, sips, comments and messages. This cannot be undone.</p>
+    <button type="button" id="dab" class="ghost" style="color:#ff6b6b;border-color:#ff6b6b">Delete my account</button>
   </form>
   <h2>Sips</h2>
   <div id="feed"></div>
@@ -21,6 +23,7 @@
 <script src="config.js"></script><script src="common.js"></script>
 <script>
 let pid = null, prof = null, n = 0, gc = 0, fc = 0;
+window.afterBlock = () => { show(); refresh(); };
 window.afterFollow = (id, on) => { if (id === pid) { gc += on ? 1 : -1; show(); } };
 const refresh = () => load($('feed'), q => q.eq('author_id', pid), 'No sips yet.');
 const safe = u => /^https?:\/\/\S+$/i.test(u);
@@ -29,7 +32,7 @@ function show() {
   const links = (prof.links || []).filter(safe).map(l => `<a class="pill" href="${esc(l)}" target="_blank" rel="noopener noreferrer nofollow">${esc(l.replace(/^https?:\/\/(www\.)?/i, '').slice(0, 30))}</a>`).join('');
   $('head').innerHTML = `<div class="who">${avatar(prof.avatar_url, prof.username, 'av big')}
     <div style="flex:1"><h2 style="margin:0">@${esc(prof.username)}${prof.verified ? VB : ''}</h2><div class="meta">${n} sip${n === 1 ? '' : 's'}, ${gc} Guhsipper${gc === 1 ? '' : 's'}, ${fc} following, joined ${new Date(prof.created_at).toLocaleDateString()}</div></div>
-    ${pid === me ? '<button id="eb" class="ghost">Edit profile</button>' : followBtn(pid) + `<a class="pill" style="margin-left:8px" href="messages.html?u=${esc(prof.username)}">Message</a><a class="pill" style="margin-left:8px" href="report.html?u=${esc(prof.username)}">Report</a>`}</div>
+    ${pid === me ? '<button id="eb" class="ghost">Edit profile</button>' : followBtn(pid) + `<a class="pill" style="margin-left:8px" href="messages.html?u=${esc(prof.username)}">Message</a><a class="pill" style="margin-left:8px" href="report.html?u=${esc(prof.username)}">Report</a><button class="pill" style="margin-left:8px" data-blk="${pid}">${BLOCKED.has(pid) ? 'Unblock' : 'Block'}</button>`}</div>
     ${prof.bio ? `<p>${esc(prof.bio)}</p>` : pid === me ? '<p class="muted">Add a bio so people know your vibe.</p>' : ''}
     <div class="acts">${links}</div>`;
   if ($('eb')) $('eb').onclick = () => {
@@ -48,10 +51,16 @@ guard().then(async id => {
   prof = data; pid = data.id;
   n = (await sb.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', pid)).count || 0;
   const cnt = async col => (await sb.from('follows').select('follower_id', { count: 'exact', head: true }).eq(col, pid)).count || 0;
-  gc = await cnt('following_id'); fc = await cnt('follower_id'); await loadFollowing();
+  gc = await cnt('following_id'); fc = await cnt('follower_id'); await loadFollowing(); await loadBlocked();
   show(); refresh();
 });
 
+$('dab').onclick = async () => {
+  if (prompt('This permanently deletes your account, sips, comments and messages. Type DELETE to confirm.') !== 'DELETE') return;
+  const r = await sb.rpc('delete_my_account');
+  if (r.error) return alert(friendly(r.error, "Couldn't delete your account. Please try again."));
+  await sb.auth.signOut(); alert('Your account has been deleted.'); location.href = 'index.html';
+};
 $('rcb').onclick = async () => {
   if (!confirm('This replaces your old recovery code. Continue?')) return;
   const c = await newCode();
@@ -67,9 +76,9 @@ $('ef').onsubmit = async e => {
   if (links.some(l => !safe(l))) return $('em').textContent = 'Links must start with http:// or https://';
   const upd = { bio: $('bio').value.trim() || null, links }, f = $('pic').files[0];
   if (f) {
-    if (f.size > 2 * 1024 * 1024) return $('em').textContent = 'Photo must be under 2 MB.';
-    const path = `${me}/avatar-${Date.now()}.${f.type.split('/')[1] || 'jpg'}`;
-    const up = await sb.storage.from('post-images').upload(path, f);
+    if (f.size > 10 * 1024 * 1024) return $('em').textContent = 'Photo must be under 10 MB.';
+    const path = `${me}/avatar-${Date.now()}.jpg`;
+    const up = await sb.storage.from('post-images').upload(path, await squash(f, 512), { contentType: 'image/jpeg' });
     if (up.error) return $('em').textContent = 'Photo upload failed. Try a smaller image.';
     upd.avatar_url = sb.storage.from('post-images').getPublicUrl(path).data.publicUrl;
   }
