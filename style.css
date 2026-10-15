@@ -142,3 +142,5 @@ details{margin-top:14px}summary{cursor:pointer;color:var(--muted);font-size:14px
 .bub.me{align-self:flex-end;background:rgba(163,255,18,.14);border-color:var(--sip);border-radius:16px 16px 4px 16px}
 .bub .meta{font-size:11px;margin-top:2px}
 #th{margin-bottom:0}
+.del{background:none;border:0;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;padding:0 0 0 6px}
+.del:hover{color:#ff6b6b}
