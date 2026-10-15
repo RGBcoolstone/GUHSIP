@@ -94,8 +94,8 @@ const io = new IntersectionObserver(es => es.forEach(en => {
   if (!en.isIntersecting) return;
   const id = en.target.dataset.id; io.unobserve(en.target);
   if (seen.has(id)) return; seen.add(id); vq.push(id);
-  clearTimeout(vt); vt = setTimeout(() => sb.rpc('record_views', { ids: vq.splice(0) }), 1500);
-}), { threshold: .6 });
+  clearTimeout(vt); vt = setTimeout(async () => { const r = await sb.rpc('record_views', { ids: vq.splice(0) }); if (r.error) console.warn('view count:', r.error.message); }, 1500);
+}), { threshold: .3 });
 const sur = n => `${n} tea${n === 1 ? "" : "s"}`;
 
 
