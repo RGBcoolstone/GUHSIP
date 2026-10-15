@@ -48,6 +48,7 @@ const ICON = {
   out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
 };
 const VB = '<svg class="vb" viewBox="0 0 24 24" aria-label="Verified"><circle cx="12" cy="12" r="11" fill="#a3ff12"/><path d="M7 12.5l3.2 3.2L17 9" stroke="#000" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+ICON.chat = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
 ICON.bell = '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>';
 const ico = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[n]}</svg>`;
 const link = (h, i, t) => `<a href="${h}" class="${location.pathname.endsWith(h) ? 'on' : ''}">${ico(i)}<span>${t}</span></a>`;
@@ -60,14 +61,14 @@ async function guard(optional) {
   document.body.classList.add('has-side');
   document.body.insertAdjacentHTML('afterbegin',
     `<aside class="side"><a class="brand" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a>
-     <nav>${link('feed.html', 'home', 'Home')}${link('profile.html', 'user', 'Profile')}${link('notifications.html', 'bell', 'Notifications')}${link('rules.html', 'book', 'Rules')}
+     <nav>${link('feed.html', 'home', 'Home')}${link('profile.html', 'user', 'Profile')}${link('messages.html', 'chat', 'Messages')}${link('notifications.html', 'bell', 'Notifications')}${link('rules.html', 'book', 'Rules')}
      <button id="out">${ico('out')}<span>Log out</span></button></nav></aside>
      <a class="top" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a>`);
   $('out').onclick = async () => { await sb.auth.signOut(); location.href = 'index.html'; };
   sb.from('admins').select('user_id').maybeSingle().then(({ data: a }) => {
     if (a) $('out').insertAdjacentHTML('beforebegin', link('admin.html', 'shield', 'Admin'));
   });
-  needName(); bell(); banCheck();
+  needName(); bell(); banCheck(); msgBadge();
   return me;
 }
 
@@ -246,4 +247,12 @@ async function toggleFollow(id) {
     return alert(friendly(r.error, "Couldn't update that. Please try again."));
   }
   if (window.afterFollow) afterFollow(id, on);
+}
+
+async function msgBadge() {
+  const a = document.querySelector('a[href="messages.html"]');
+  if (!a) return;
+  a.insertAdjacentHTML('beforeend', '<b id="mb" class="nb" hidden></b>');
+  const x = await sb.from('messages').select('id', { count: 'exact', head: true }).eq('recipient_id', me).eq('read', false);
+  if (x.count) { $('mb').textContent = x.count > 99 ? '99+' : x.count; $('mb').hidden = false; }
 }

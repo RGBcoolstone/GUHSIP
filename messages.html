@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Messages | GUHSIP</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main>
+  <div id="inbox"><h2>Messages</h2><div id="list"></div></div>
+  <div id="thread" hidden>
+    <div id="th" class="card who"></div>
+    <div id="msgs" class="msgs"></div>
+    <form id="mf" class="cf"><input id="mi" maxlength="1000" placeholder="Message..." autocomplete="off" required><button class="btn sm">Send</button></form>
+    <p id="mn" class="muted"></p>
+  </div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+const u = new URLSearchParams(location.search).get('u');
+let pid = null, peer = null, blocked = false, last = '';
+const mine = m => m.sender_id === me;
+const refresh = () => u ? load(false) : inbox();
+
+async function inbox() {
+  const { data, error } = await sb.from('messages').select('sender_id,recipient_id,body,read,created_at').or(`sender_id.eq.${me},recipient_id.eq.${me}`).order('created_at', { ascending: false }).limit(300);
+  if (error) return $('list').innerHTML = `<p class="muted">${offline(error) ? OFFLINE : "Couldn't load your messages. Please refresh in a moment."}</p>`;
+  const c = new Map();
+  (data || []).forEach(m => {
+    const o = mine(m) ? m.recipient_id : m.sender_id, e = c.get(o) || { m, unread: 0 };
+    if (!mine(m) && !m.read) e.unread++;
+    c.set(o, e);
+  });
+  if (!c.size) return $('list').innerHTML = '<p class="muted">No messages yet. Open someone\'s profile and tap Message to start a chat.</p>';
+  const { data: ps } = await sb.from('profiles').select('id,username,avatar_url,verified').in('id', [...c.keys()]);
+  const pm = new Map((ps || []).map(p => [p.id, p]));
+  $('list').innerHTML = [...c].map(([id, e]) => {
+    const p = pm.get(id) || {};
+    return `<a class="card nt ${e.unread ? 'unread' : ''}" href="messages.html?u=${esc(p.username)}"><div class="who">${avatar(p.avatar_url, p.username || '?')}
+      <div style="flex:1;min-width:0"><b>@${esc(p.username)}</b>${p.verified ? VB : ''}<div class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${mine(e.m) ? 'You: ' : ''}${esc(e.m.body)}</div></div>
+      <span class="meta">${ago(e.m.created_at)}</span>${e.unread ? `<b class="nb" style="margin-left:8px">${e.unread}</b>` : ''}</div></a>`;
+  }).join('');
+}
+
+function head() {
+  $('th').innerHTML = `<a href="messages.html" class="pill">Back</a>${avatar(peer.avatar_url, peer.username)}
+    <div style="flex:1"><a href="profile.html?u=${esc(peer.username)}"><b>@${esc(peer.username)}</b></a>${peer.verified ? VB : ''}</div>
+    <button class="fbtn" id="bk" style="margin-left:0">${blocked ? 'Unblock' : 'Block'}</button><a class="pill" href="report.html?u=${esc(peer.username)}&dm=1">Report</a>`;
+  $('mf').hidden = blocked;
+  $('mn').textContent = blocked ? 'You blocked this person. Unblock to send messages.' : '';
+  $('bk').onclick = async () => {
+    if (!blocked && !confirm("Block this person? They won't be able to message you.")) return;
+    const r = blocked ? await sb.from('blocks').delete().match({ blocker_id: me, blocked_id: pid }) : await sb.from('blocks').insert({ blocked_id: pid });
+    if (r.error) return alert(friendly(r.error, "Couldn't update that. Please try again."));
+    blocked = !blocked; head();
+  };
+}
+
+async function openThread() {
+  $('inbox').hidden = true; $('thread').hidden = false;
+  const { data: p } = await sb.from('profiles').select('id,username,avatar_url,verified').eq('username', u.toLowerCase()).maybeSingle();
+  if (!p || p.id === me) { $('th').innerHTML = '<p class="muted">No one to message here. <a href="messages.html">Back to messages</a></p>'; $('mf').hidden = true; return; }
+  peer = p; pid = p.id;
+  const b = await sb.from('blocks').select('blocked_id').eq('blocker_id', me).eq('blocked_id', pid).maybeSingle();
+  blocked = !!b.data; head();
+  await load(true);
+  setInterval(() => load(false), 6000);
+}
+
+async function load(first) {
+  const { data, error } = await sb.from('messages').select('id,sender_id,body,read,created_at').or(`and(sender_id.eq.${me},recipient_id.eq.${pid}),and(sender_id.eq.${pid},recipient_id.eq.${me})`).order('created_at').limit(200);
+  if (error) { if (first) $('msgs').innerHTML = `<p class="muted">${offline(error) ? OFFLINE : "Couldn't load this chat. Please refresh in a moment."}</p>`; return; }
+  const sig = data.length + ':' + (data.length ? data[data.length - 1].id : '');
+  if (sig !== last) {
+    last = sig;
+    $('msgs').innerHTML = data.map(m => `<div class="bub ${mine(m) ? 'me' : ''}">${esc(m.body)}<div class="meta">${ago(m.created_at)}</div></div>`).join('') || '<p class="muted">Say hi \u{1F44B}</p>';
+    $('msgs').scrollTop = $('msgs').scrollHeight;
+  }
+  if (data.some(m => !mine(m) && !m.read)) await sb.from('messages').update({ read: true }).eq('sender_id', pid).eq('recipient_id', me).eq('read', false);
+}
+
+$('mf').onsubmit = async e => {
+  e.preventDefault();
+  const t = $('mi').value.trim(); if (!t) return;
+  const r = await sb.from('messages').insert({ recipient_id: pid, body: t });
+  if (r.error) return alert(offline(r.error) ? OFFLINE : /slow down/i.test(r.error.message) ? 'Slow down a little, then try again.' : "Couldn't send that message. You may not be able to message this person.");
+  $('mi').value = ''; load(false);
+};
+
+guard().then(id => { if (id) { if (u) openThread(); else inbox(); } });
+</script></body></html>

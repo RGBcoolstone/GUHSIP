@@ -30,7 +30,12 @@ guard().then(async id => {
 });
 $('rf').onsubmit = async e => {
   e.preventDefault();
-  const note = $('rd').value.trim(), row = { reason: $('rs').value + (note ? ': ' + note : '') };
+  let ev = '';
+  if (q.get('dm') && user) {
+    const pp = await sb.from('profiles').select('id').eq('username', user).maybeSingle();
+    if (pp.data) { const mm = await sb.from('messages').select('body').eq('sender_id', pp.data.id).eq('recipient_id', me).order('created_at', { ascending: false }).limit(5); ev = ' | Messages they sent me: ' + (mm.data || []).map(x => x.body).reverse().join(' / '); }
+  }
+  const note = $('rd').value.trim(), row = { reason: $('rs').value + (note ? ': ' + note : '') + ev };
   if (post) row.post_id = post;
   else {
     const { data } = await sb.from('profiles').select('id').eq('username', user || '').maybeSingle();
