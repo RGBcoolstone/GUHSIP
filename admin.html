@@ -17,6 +17,7 @@
     <h2>Hidden posts</h2><div id="hid"></div>
     <h2>Recent reports</h2><div id="rep"></div>
     <h2>Reported profiles</h2><div id="prof"></div>
+    <h2>Reported comments</h2><div id="cmr"></div>
   </div>
 </main>
 <script src="config.js"></script><script src="common.js"></script>
@@ -39,6 +40,9 @@ async function refresh() {
   const g = new Map();
   (pr.data || []).forEach(x => { if (!x.profiles) return; const e = g.get(x.profiles.id) || { u: x.profiles.username, r: [] }; e.r.push(x.reason); g.set(x.profiles.id, e); });
   $('prof').innerHTML = [...g].map(([id, e]) => `<div class="card" data-u="${id}"><p><a href="profile.html?u=${esc(e.u)}">@${esc(e.u)}</a> (${e.r.length} report${e.r.length === 1 ? '' : 's'})</p><p class="muted">${esc(e.r.slice(0, 3).join(' | '))}</p><div class="acts"><button data-k="warn">Warn</button><button data-k="ban">Ban</button></div></div>`).join('') || '<p class="muted">No reported profiles.</p>';
+  const cr = await sb.from('reports').select('reason,comments!comment_id(id,body,author_id,profiles!author_id(username))').not('comment_id', 'is', null).order('created_at', { ascending: false }).limit(40);
+  const seenC = new Set();
+  $('cmr').innerHTML = (cr.data || []).filter(x => x.comments && !seenC.has(x.comments.id) && seenC.add(x.comments.id)).map(x => `<div class="card" data-u="${x.comments.author_id}" data-c="${x.comments.id}"><div class="meta">@${esc(x.comments.profiles?.username)} commented</div><p>${esc(x.comments.body)}</p><p class="muted">${esc(x.reason)}</p><div class="acts"><button data-k="cdel">Delete comment</button><button data-k="warn">Warn</button><button data-k="ban">Ban</button></div></div>`).join('') || '<p class="muted">No reported comments.</p>';
   const w = await sb.from('blocked_words').select('word').order('word');
   $('wl').innerHTML = (w.data || []).map(x => `${esc(x.word)} <a href="#" data-w="${esc(x.word)}">remove</a>`).join(' &nbsp; ') || 'No blocked words yet.';
 }
@@ -72,6 +76,7 @@ document.addEventListener('click', async e => {
   const c = b.closest('[data-u]'), id = c.dataset.p, k = b.dataset.k;
   if (k === 'ok') await sb.from('posts').update({ hidden: false }).eq('id', id);
   if (k === 'del' && confirm('Delete this post?')) await sb.from('posts').delete().eq('id', id);
+  if (k === 'cdel' && confirm('Delete this comment?')) await sb.from('comments').delete().eq('id', c.dataset.c);
   if (k === 'warn') {
     const why = prompt('Reason for the warning? The user will see this.'); if (!why) return;
     const r = await sb.from('warnings').insert({ user_id: c.dataset.u, reason: why.trim() });

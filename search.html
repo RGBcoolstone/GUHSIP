@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Search | GUHSIP</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main>
+  <h2>Search</h2>
+  <input id="q" placeholder="Search people or sips..." autocomplete="off">
+  <div id="res"></div>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+let tm;
+const refresh = () => run($('q').value.trim());
+async function run(t) {
+  if (t.length < 2) return $('res').innerHTML = '<p class="muted">Type at least 2 letters.</p>';
+  const s = t.replace(/[%_\\]/g, '\\$&');
+  const [pp, ps] = await Promise.all([
+    sb.from('profiles').select('id,username,avatar_url,verified,bio').ilike('username', `%${s}%`).limit(10),
+    sb.from('posts').select(SEL).ilike('body', `%${s}%`).order('created_at', { ascending: false }).limit(30),
+  ]);
+  if (pp.error && ps.error) return $('res').innerHTML = `<p class="muted">${offline(pp.error) ? OFFLINE : "Couldn't search right now. Please try again in a moment."}</p>`;
+  await loadFollowing();
+  const people = (pp.data || []).map(p => `<div class="card"><div class="who">${avatar(p.avatar_url, p.username)}<div style="flex:1;min-width:0"><a href="profile.html?u=${esc(p.username)}"><b>@${esc(p.username)}</b></a>${p.verified ? VB : ''}<div class="meta">${esc((p.bio || '').slice(0, 80))}</div></div>${followBtn(p.id)}</div></div>`).join('');
+  const sips = (ps.data || []).map(card).join('');
+  $('res').innerHTML = (people ? '<h2>People</h2>' + people : '') + (sips ? '<h2>Sips</h2>' + sips : '') || '<p class="muted">Nothing found. Try a different word.</p>';
+}
+$('q').oninput = () => { clearTimeout(tm); tm = setTimeout(refresh, 350); };
+guard().then(id => { if (id) $('q').focus(); });
+</script></body></html>

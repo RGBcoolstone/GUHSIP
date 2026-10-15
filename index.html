@@ -15,15 +15,23 @@
       <button id="go" class="btn full">Log in</button><p id="msg" class="msg"></p>
     </form>
         <p class="muted" id="fgp">Forgot your password? <a href="#" id="fg">Reset it</a></p>
+    <div id="rc" hidden>
+      <h2>Save your recovery code</h2>
+      <p class="muted">This lets you reset your password without email. It is shown once. Screenshot it or write it down.</p>
+      <div class="code" id="code"></div>
+      <button id="cp" class="btn full" type="button">Copy code</button>
+      <button id="ok" class="ghost full" type="button" style="margin-top:8px">I saved it, continue</button>
+    </div>
     <div id="rp" hidden>
       <h2>Reset password</h2>
-      <form id="sr"><input id="rem" type="email" placeholder="Your email" required><button class="btn full">Send reset link</button></form>
-      <details><summary>Older account without an email? Use your recovery code</summary>
-        <form id="rf">
-          <input id="ru" placeholder="Username" required><input id="rcode" placeholder="Recovery code" required>
-          <input id="rnp" type="password" autocomplete="new-password" placeholder="New password (8+ characters)" required>
-          <button class="btn full">Set new password</button>
-        </form></details>
+      <p class="muted">Enter your username, your recovery code and a new password.</p>
+      <form id="rf">
+        <input id="ru" placeholder="Username" required><input id="rcode" placeholder="Recovery code" required>
+        <input id="rnp" type="password" autocomplete="new-password" placeholder="New password (8+ characters)" required>
+        <button class="btn full">Set new password</button>
+      </form>
+      <details><summary>No recovery code? Email me a reset link instead</summary>
+        <form id="sr"><input id="rem" type="email" placeholder="Your email" required><button class="btn full">Send reset link</button></form></details>
       <p id="rm" class="msg"></p>
     </div>
   </div>
@@ -63,7 +71,15 @@ $('f').onsubmit = async e => {
   const r = await sb.auth.signUp({ email: $('em').value.trim().toLowerCase(), password: p, options: { data: { username: v }, emailRedirectTo: here('feed.html') } });
   if (r.error) return msg(authMsg(r.error));
   if (r.data.user && r.data.user.identities && !r.data.user.identities.length) return msg('That email already has an account. Try logging in.');
-  if (r.data.session) return location.href = 'feed.html';
+  if (r.data.session) {
+    const code = await newCode();
+    if (!code) return location.href = 'feed.html';
+    document.querySelector('.tabs').hidden = $('f').hidden = $('fgp').hidden = true; $('rc').hidden = false;
+    $('code').textContent = fmtCode(code);
+    $('cp').onclick = () => navigator.clipboard.writeText($('code').textContent).then(() => $('cp').textContent = 'Copied');
+    $('ok').onclick = () => location.href = 'feed.html';
+    return;
+  }
   msg('Almost done. Click the link we emailed you to verify, then log in. Check spam too.', true);
 };
 

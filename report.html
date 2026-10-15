@@ -20,13 +20,13 @@
 </main>
 <script src="config.js"></script><script src="common.js"></script>
 <script>
-const q = new URLSearchParams(location.search), post = q.get('p'), user = q.get('u');
+const q = new URLSearchParams(location.search), post = q.get('p'), user = q.get('u'), cm = q.get('c');
 guard().then(async id => {
   if (!id) return;
   if (post) {
     const { data } = await sb.from('posts').select('body,profiles!author_id(username)').eq('id', post).maybeSingle();
     $('what').textContent = data ? `Reporting @${data.profiles?.username}'s sip: "${(data.body || '[image]').slice(0, 80)}"` : 'Reporting a sip.';
-  } else $('what').textContent = 'Reporting the profile @' + user;
+  } else $('what').textContent = cm ? 'Reporting a comment.' : 'Reporting the profile @' + user;
 });
 $('rf').onsubmit = async e => {
   e.preventDefault();
@@ -37,6 +37,7 @@ $('rf').onsubmit = async e => {
   }
   const note = $('rd').value.trim(), row = { reason: $('rs').value + (note ? ': ' + note : '') + ev };
   if (post) row.post_id = post;
+  else if (cm) row.comment_id = cm;
   else {
     const { data } = await sb.from('profiles').select('id').eq('username', user || '').maybeSingle();
     if (!data) return alert('Profile not found.');
@@ -45,6 +46,6 @@ $('rf').onsubmit = async e => {
   const r = await sb.from('reports').insert(row), dup = r.error && /duplicate|unique/i.test(r.error.message);
   if (r.error && !dup) return alert(friendly(r.error, "Couldn't send the report. Please try again."));
   $('rf').hidden = true; $('ok').hidden = false;
-  $('okt').textContent = dup ? 'You already reported this. It is under review.' : `Thanks for reporting. This ${post ? 'post' : 'profile'} is under review.`;
+  $('okt').textContent = dup ? 'You already reported this. It is under review.' : `Thanks for reporting. This ${post ? 'post' : cm ? 'comment' : 'profile'} is under review.`;
 };
 </script></body></html>

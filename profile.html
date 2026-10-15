@@ -12,6 +12,8 @@
     <input id="l1" placeholder="Link 1 (https://...)"><input id="l2" placeholder="Link 2 (https://...)"><input id="l3" placeholder="Link 3 (https://...)">
     <div class="row"><button type="button" id="cx" class="ghost">Cancel</button><button class="btn">Save</button></div>
     <p id="em" class="msg"></p>
+    <h2 style="margin-top:14px">Recovery code</h2><p class="muted">Lets you reset your password without email. A new code replaces the old one.</p>
+    <button type="button" id="rcb" class="ghost">Make a new recovery code</button><div id="rcd" class="code" hidden></div>
   </form>
   <h2>Sips</h2>
   <div id="feed"></div>
@@ -50,6 +52,13 @@ guard().then(async id => {
   show(); refresh();
 });
 
+$('rcb').onclick = async () => {
+  if (!confirm('This replaces your old recovery code. Continue?')) return;
+  const c = await newCode();
+  if (!c) return alert(friendly(null, "Couldn't make a code. Please try again."));
+  $('rcd').hidden = false; $('rcd').textContent = fmtCode(c);
+  alert('Save this code now. It is shown once.');
+};
 $('pic').onchange = () => $('pn').textContent = $('pic').files[0]?.name || '';
 $('cx').onclick = () => $('ef').hidden = true;
 $('ef').onsubmit = async e => {

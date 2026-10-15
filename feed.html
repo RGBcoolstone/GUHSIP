@@ -5,6 +5,7 @@
 <body>
 <main>
   <div id="ups"></div>
+  <div class="tabs" id="ftabs"></div>
   <div class="filters"><select id="sc"></select><select id="st"></select></div>
   <form id="pf" class="card">
     <div id="types" class="acts" style="margin-bottom:10px"></div>
@@ -23,8 +24,10 @@
 </main>
 <script src="config.js"></script><script src="common.js"></script>
 <script>
-const P = new URLSearchParams(location.search), cur = P.get('c'), ft = P.get('t');
-const href = (c, t) => 'feed.html' + (c || t ? '?' + [c && 'c=' + c, t && 't=' + t].filter(Boolean).join('&') : '');
+const P = new URLSearchParams(location.search), cur = P.get('c'), ft = P.get('t'), fol = P.get('f') === '1';
+const href = (c, t) => 'feed.html' + (fol || c || t ? '?' + [fol && 'f=1', c && 'c=' + c, t && 't=' + t].filter(Boolean).join('&') : '');
+$('ftabs').innerHTML = `<button class="${fol ? '' : 'on'}" data-f1="0">For you</button><button class="${fol ? 'on' : ''}" data-f1="1">Following</button>`;
+$('ftabs').onclick = e => { const b = e.target.closest('button'); if (b) location.href = 'feed.html' + (b.dataset.f1 === '1' ? '?f=1' : ''); };
 const opts = (list, on) => list.map(([id, n]) => `<option value="${id}" ${(on || '') === id ? 'selected' : ''}>${n}</option>`).join('');
 $('sc').innerHTML = opts([['', 'All communities'], ...COMMS], cur);
 $('st').innerHTML = opts([['', 'All types'], ...Object.entries(TYPES)], ft);
@@ -49,7 +52,11 @@ $('ep').onclick = e => { const b = e.target.closest('button'); if (!b) return; c
 $('file').onchange = () => $('fname').textContent = $('file').files[0]?.name || '';
 
 let big = false;
-const refresh = () => load($('feed'), q => { if (cur) q = q.eq('community_id', cur); if (ft) q = q.eq('post_type', ft); return q; }, 'No sips here yet. Post the first one.', !cur && !ft && big);
+const refresh = async () => {
+  if (fol) await loadFollowing();
+  return load($('feed'), q => { if (fol) q = q.in('author_id', [...FOLLOWING]); if (cur) q = q.eq('community_id', cur); if (ft) q = q.eq('post_type', ft); return q; },
+    fol ? 'Follow some Guhsippers and their sips will show up here.' : 'No sips here yet. Post the first one.', !fol && !cur && !ft && big);
+};
 guard().then(async id => {
   if (!id) return;
   big = ((await sb.from('profiles').select('id', { count: 'exact', head: true })).count || 0) >= 10;

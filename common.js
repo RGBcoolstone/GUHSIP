@@ -5,7 +5,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 let me = null;
 const OFFLINE = "You're offline. Check your connection and try again.";
 const offline = e => !navigator.onLine || /failed to fetch|network|load failed|fetch/i.test((e && e.message) || '');
-const friendly = (e, fallback) => offline(e) ? OFFLINE : fallback;
+const friendly = (e, fallback) => offline(e) ? OFFLINE : /slow down/i.test((e && e.message) || '') ? 'You are doing that too fast. Please wait a moment and try again.' : fallback;
 function authMsg(e) {
   const m = (e && e.message) || '';
   if (offline(e)) return OFFLINE;
@@ -48,6 +48,7 @@ const ICON = {
   out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
 };
 const VB = '<svg class="vb" viewBox="0 0 24 24" aria-label="Verified"><circle cx="12" cy="12" r="11" fill="#a3ff12"/><path d="M7 12.5l3.2 3.2L17 9" stroke="#000" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+ICON.search = '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/>';
 ICON.chat = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
 ICON.bell = '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>';
 const ico = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[n]}</svg>`;
@@ -61,7 +62,7 @@ async function guard(optional) {
   document.body.classList.add('has-side');
   document.body.insertAdjacentHTML('afterbegin',
     `<aside class="side"><a class="brand" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a>
-     <nav>${link('feed.html', 'home', 'Home')}${link('profile.html', 'user', 'Profile')}${link('messages.html', 'chat', 'Messages')}${link('notifications.html', 'bell', 'Notifications')}${link('rules.html', 'book', 'Rules')}
+     <nav>${link('feed.html', 'home', 'Home')}${link('profile.html', 'user', 'Profile')}${link('search.html', 'search', 'Search')}${link('messages.html', 'chat', 'Messages')}${link('notifications.html', 'bell', 'Notifications')}${link('rules.html', 'book', 'Rules')}
      <button id="out">${ico('out')}<span>Log out</span></button></nav></aside>
      <a class="top" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a>`);
   $('out').onclick = async () => { await sb.auth.signOut(); location.href = 'index.html'; };
@@ -128,8 +129,8 @@ async function load(el, filter, empty, mix) {
 async function openComments(c, id) {
   const box = c.querySelector('.cbox');
   box.hidden = !box.hidden; if (box.hidden) return;
-  const { data } = await sb.from('comments').select('body,profiles!author_id(username)').eq('post_id', id).order('created_at');
-  box.innerHTML = (data || []).map(x => `<p class="cm"><a href="profile.html?u=${esc(x.profiles?.username)}">@${esc(x.profiles?.username)}</a> ${esc(x.body)}</p>`).join('')
+  const { data } = await sb.from('comments').select('id,author_id,body,profiles!author_id(username)').eq('post_id', id).order('created_at');
+  box.innerHTML = (data || []).map(x => `<p class="cm"><a href="profile.html?u=${esc(x.profiles?.username)}">@${esc(x.profiles?.username)}</a> ${esc(x.body)} ${x.author_id === me ? `<button class="del" data-cdel="${x.id}">Delete</button>` : `<a class="del" href="report.html?c=${x.id}">Report</a>`}</p>`).join('')
     + '<form class="cf"><button type="button" class="emo-b">😊</button><input maxlength="500" placeholder="Add a comment" required><button class="btn sm">Send</button></form><div class="emo" hidden>' + EMO.map(e => `<button type="button">${e}</button>`).join('') + '</div>';
   box.querySelector('form').onsubmit = async ev => {
     ev.preventDefault();
@@ -143,6 +144,15 @@ async function openComments(c, id) {
 
 // Each page defines refresh() to reload itself
 document.addEventListener('click', async e => {
+  const cd = e.target.closest('[data-cdel]');
+  if (cd) {
+    if (!confirm('Delete your comment?')) return;
+    const r = await sb.from('comments').delete().eq('id', cd.dataset.cdel);
+    if (r.error) return alert(friendly(r.error, "Couldn't delete that comment. Please try again."));
+    const c = cd.closest('.card'), n = c.querySelector('[data-a="com"] span');
+    n.textContent = Math.max(0, +n.textContent - 1); c.querySelector('.cbox').hidden = true; openComments(c, c.dataset.id);
+    return;
+  }
   const fb = e.target.closest('[data-f]');
   if (fb) { toggleFollow(fb.dataset.f); return; }
   const eb = e.target.closest('.emo-b'), em = e.target.closest('.emo button');
@@ -255,4 +265,12 @@ async function msgBadge() {
   a.insertAdjacentHTML('beforeend', '<b id="mb" class="nb" hidden></b>');
   const x = await sb.from('messages').select('id', { count: 'exact', head: true }).eq('recipient_id', me).eq('read', false);
   if (x.count) { $('mb').textContent = x.count > 99 ? '99+' : x.count; $('mb').hidden = false; }
+}
+
+// Recovery codes (reset a password without email)
+const fmtCode = c => c.match(/.{4}/g).join('-');
+async function newCode() {
+  const code = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
+  const r = await sb.rpc('set_recovery', { code });
+  return r.error ? null : code;
 }
