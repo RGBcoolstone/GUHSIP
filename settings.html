@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings | GUHSIP</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body>
+<main>
+  <h2>Settings</h2>
+  <div class="sh">Account</div>
+  <a class="card srow" href="profile.html"><span>My profile</span><span>&gt;</span></a>
+  <a class="card srow" href="profile.html?edit=1"><span>Edit profile, recovery code, delete account</span><span>&gt;</span></a>
+  <div class="sh">Community</div>
+  <a class="card srow" href="rules.html"><span>Rules</span><span>&gt;</span></a>
+  <a class="card srow" href="privacy.html"><span>Privacy policy</span><span>&gt;</span></a>
+  <a class="card srow" href="terms.html"><span>Terms of use</span><span>&gt;</span></a>
+  <div id="adm"></div>
+  <div class="sh">App</div>
+  <p class="muted">To install GUHSIP on your phone, open your browser menu and choose Add to Home screen.</p>
+  <button id="out" class="ghost full" style="margin-top:14px">Log out</button>
+</main>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+guard().then(async id => {
+  if (!id) return;
+  const a = await sb.from('admins').select('user_id').maybeSingle();
+  if (a.data) $('adm').innerHTML = '<div class="sh">Admin</div><a class="card srow" href="admin.html"><span>Admin dashboard</span><span>&gt;</span></a>';
+});
+$('out').onclick = async () => { await sb.auth.signOut(); location.href = 'index.html'; };
+</script></body></html>

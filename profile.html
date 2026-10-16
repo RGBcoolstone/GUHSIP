@@ -53,6 +53,7 @@ guard().then(async id => {
   const cnt = async col => (await sb.from('follows').select('follower_id', { count: 'exact', head: true }).eq(col, pid)).count || 0;
   gc = await cnt('following_id'); fc = await cnt('follower_id'); await loadFollowing(); await loadBlocked();
   show(); refresh();
+  if (new URLSearchParams(location.search).get('edit') && $('eb')) $('eb').click();
 });
 
 $('dab').onclick = async () => {

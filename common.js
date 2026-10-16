@@ -50,6 +50,7 @@ const ICON = {
 };
 const VB = '<svg class="vb" viewBox="0 0 24 24" aria-label="Verified"><circle cx="12" cy="12" r="11" fill="#a3ff12"/><path d="M7 12.5l3.2 3.2L17 9" stroke="#000" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 ICON.search = '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/>';
+ICON.gear = '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>';
 ICON.chat = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
 ICON.bell = '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>';
 const ico = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[n]}</svg>`;
@@ -63,13 +64,8 @@ async function guard(optional) {
   document.body.classList.add('has-side');
   document.body.insertAdjacentHTML('afterbegin',
     `<aside class="side"><a class="brand" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a>
-     <nav>${link('feed.html', 'home', 'Home')}${link('profile.html', 'user', 'Profile')}${link('search.html', 'search', 'Search')}${link('messages.html', 'chat', 'Messages')}${link('notifications.html', 'bell', 'Notifications')}${link('rules.html', 'book', 'Rules')}
-     <button id="out">${ico('out')}<span>Log out</span></button></nav></aside>
-     <a class="top" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a>`);
-  $('out').onclick = async () => { await sb.auth.signOut(); location.href = 'index.html'; };
-  sb.from('admins').select('user_id').maybeSingle().then(({ data: a }) => {
-    if (a) $('out').insertAdjacentHTML('beforebegin', link('admin.html', 'shield', 'Admin'));
-  });
+     <nav>${link('feed.html', 'home', 'Home')}${link('search.html', 'search', 'Search')}${link('notifications.html', 'bell', 'Notifications')}${link('messages.html', 'chat', 'Messages')}${link('profile.html', 'user', 'Profile')}${link('settings.html', 'gear', 'Settings')}</nav></aside>
+     <div class="top"><a class="tl" href="feed.html">${logo('mini')}<span class="word">${WORD}</span></a><a class="gear" href="settings.html" aria-label="Settings">${ico('gear')}</a></div>`);
   needName(); bell(); banCheck(); msgBadge();
   return me;
 }
