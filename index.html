@@ -41,6 +41,7 @@
 $('hero').innerHTML = `${logo('logo')}<span class="word">${WORD}</span><p class="tag">What's the sip?</p>`;
 const here = f => new URL(f, location.href).href;
 let mode = 'login';
+const dest = () => { const n = sessionStorage.getItem('next'); sessionStorage.removeItem('next'); return n || 'feed.html'; };
 const msg = (t, ok) => { $('msg').textContent = t || ''; $('msg').className = 'msg' + (ok ? ' ok' : ''); };
 function setMode(m) {
   mode = m; const s = m === 'signup';
@@ -51,7 +52,7 @@ function setMode(m) {
   $('go').textContent = s ? 'Create account' : 'Log in'; msg();
 }
 $('tl').onclick = () => setMode('login'); $('ts').onclick = () => setMode('signup'); setMode('login');
-sb.auth.getSession().then(({ data }) => { if (data.session) location.href = 'feed.html'; });
+sb.auth.getSession().then(({ data }) => { if (data.session) location.href = dest(); });
 
 $('f').onsubmit = async e => {
   e.preventDefault(); msg();
@@ -73,11 +74,11 @@ $('f').onsubmit = async e => {
   if (r.data.user && r.data.user.identities && !r.data.user.identities.length) return msg('That email already has an account. Try logging in.');
   if (r.data.session) {
     const code = await newCode();
-    if (!code) return location.href = 'feed.html';
+    if (!code) return location.href = dest();
     document.querySelector('.tabs').hidden = $('f').hidden = $('fgp').hidden = true; $('rc').hidden = false;
     $('code').textContent = fmtCode(code);
     $('cp').onclick = () => navigator.clipboard.writeText($('code').textContent).then(() => $('cp').textContent = 'Copied');
-    $('ok').onclick = () => location.href = 'feed.html';
+    $('ok').onclick = () => location.href = dest();
     return;
   }
   msg('Almost done. Click the link we emailed you to verify, then log in. Check spam too.', true);

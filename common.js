@@ -58,7 +58,7 @@ const link = (h, i, t) => `<a href="${h}" class="${location.pathname.endsWith(h)
 // Adds the left menu on every page. guard(true) = don't force login (used by the rules page).
 async function guard(optional) {
   const { data } = await sb.auth.getSession();
-  if (!data.session) { if (!optional) location.href = 'index.html'; return null; }
+  if (!data.session) { if (!optional) { sessionStorage.setItem('next', location.pathname.split('/').pop() + location.search); location.href = 'index.html'; } return null; }
   me = data.session.user.id;
   document.body.classList.add('has-side');
   document.body.insertAdjacentHTML('afterbegin',
@@ -110,6 +110,7 @@ function card(p) {
     <div class="acts">
       <button data-a="sur" data-n="${n}" class="sur ${mine ? 'on' : ''}"><i class="tea">🍵</i> <span>${sur(n)}</span></button>
       <button data-a="com">Comments <span>${p.comments[0]?.count || 0}</span></button>
+      <button data-sh="${p.id}">Share</button>
       <a class="pill" href="report.html?p=${p.id}">Report</a>
       ${p.author_id === me ? '<button data-a="del">Delete</button>' : ''}
       <span class="views">${views(p.view_count)}</span>
@@ -146,6 +147,8 @@ async function openComments(c, id) {
 
 // Each page defines refresh() to reload itself
 document.addEventListener('click', async e => {
+  const sh = e.target.closest('[data-sh]');
+  if (sh) { sharePost(sh.dataset.sh, sh); return; }
   const bl = e.target.closest('[data-blk]');
   if (bl) { toggleBlock(bl.dataset.blk); return; }
   const cd = e.target.closest('[data-cdel]');
@@ -306,4 +309,12 @@ async function toggleBlock(id) {
   if (r.error) return alert(friendly(r.error, "Couldn't update that. Please try again."));
   if (on) BLOCKED.add(id); else BLOCKED.delete(id);
   if (window.afterBlock) afterBlock(); else if (typeof refresh === 'function') refresh();
+}
+
+// Share a sip: the phone's share sheet (WhatsApp, Instagram, TikTok, X...) or copy the link
+async function sharePost(id, btn) {
+  const url = `${location.origin}/s/${id}`, t = ((btn.closest('.card').querySelector('p') || {}).textContent || 'A sip on GUHSIP').slice(0, 100);
+  try { if (navigator.share) { await navigator.share({ title: 'GUHSIP', text: t, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); btn.textContent = 'Link copied'; setTimeout(() => btn.textContent = 'Share', 1800); }
+  catch (e) { prompt('Copy this link:', url); }
 }
